@@ -43,6 +43,7 @@ export interface HardWord {
 }
 export interface WordRow {
   id: number; article: Article; lemma: string; translation: string; level: Level
+  plural: string | null; example: string | null
   box: number; status: WordStatus; seen: number; correct: number; wrong: number
 }
 export interface WordsPage { total: number; page: number; pageSize: number; items: WordRow[] }

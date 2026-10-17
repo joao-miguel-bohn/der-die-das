@@ -1,10 +1,10 @@
 import { zValidator } from '@hono/zod-validator'
-import { and, asc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, like, ne, or, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { chunk } from '@shared/chunk'
-import { deleteWordsSchema, levelSchema } from '@shared/schemas'
+import { deleteWordsSchema, importRowSchema, levelSchema } from '@shared/schemas'
 import { statusForBox } from '@shared/srs'
 import type { AppEnv } from '../middleware'
 import { schema } from '../db'
@@ -41,6 +41,8 @@ export const wordsRoutes = new Hono<AppEnv>()
       lemma: words.lemma,
       translation: words.translation,
       level: words.level,
+      plural: words.plural,
+      example: words.example,
       box,
       seen: sql<number>`coalesce(${progress.seen}, 0)`,
       correct: sql<number>`coalesce(${progress.correct}, 0)`,
@@ -80,3 +82,51 @@ export const wordsRoutes = new Hono<AppEnv>()
     const results = first ? await db.batch([first, ...rest]) : []
     return c.json({ deleted: results.reduce((n, rows) => n + rows.length, 0) })
   })
+
+  /**
+   * Admin only. Fixes a word in place (typos in the word, meaning, example, ...). The id stays the
+   * same, so every user's progress on it is kept.
+   */
+  .put(
+    '/:id',
+    zValidator('param', z.object({ id: z.coerce.number().int().positive() })),
+    zValidator('json', importRowSchema),
+    async (c) => {
+      if (!c.var.isAdmin) throw new HTTPException(403, { message: 'Only the admin can edit words' })
+      const { id } = c.req.valid('param')
+      const input = c.req.valid('json')
+      const { db } = c.var
+
+      const [duplicate] = await db
+        .select({ id: words.id })
+        .from(words)
+        .where(and(eq(words.lemma, input.lemma), eq(words.article, input.article), ne(words.id, id)))
+        .limit(1)
+      if (duplicate) {
+        throw new HTTPException(409, { message: `"${input.article} ${input.lemma}" already exists as another word` })
+      }
+
+      try {
+        const [updated] = await db
+          .update(words)
+          .set({
+            article: input.article,
+            lemma: input.lemma,
+            translation: input.translation,
+            level: input.level,
+            plural: input.plural ?? null,
+            example: input.example ?? null,
+          })
+          .where(eq(words.id, id))
+          .returning()
+        if (!updated) throw new HTTPException(404, { message: 'Word not found' })
+        return c.json({ word: updated })
+      } catch (err) {
+        // Someone created the same word between the check above and the update.
+        if (err instanceof Error && /UNIQUE/i.test(err.message)) {
+          throw new HTTPException(409, { message: `"${input.article} ${input.lemma}" already exists as another word` })
+        }
+        throw err
+      }
+    },
+  )

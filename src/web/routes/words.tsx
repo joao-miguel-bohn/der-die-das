@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { LEVELS } from '@shared/types'
 import { ArticleBadge } from '@/components/article-badge'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { EditWordDialog } from '@/components/edit-word-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -36,6 +37,7 @@ export default function Words() {
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [action, setAction] = useState<PendingAction | null>(null)
+  const [editing, setEditing] = useState<WordRow | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => { setQ(search); setPage(1) }, 300)
@@ -170,6 +172,11 @@ export default function Words() {
                       <RotateCcw /> Reset progress
                     </DropdownMenuItem>
                     {isAdmin && (
+                      <DropdownMenuItem onSelect={() => setEditing(w)}>
+                        <Pencil /> Edit word
+                      </DropdownMenuItem>
+                    )}
+                    {isAdmin && (
                       <DropdownMenuItem variant="destructive" onSelect={() => setAction({ kind: 'delete', words: [w] })}>
                         <Trash2 /> Delete word
                       </DropdownMenuItem>
@@ -193,6 +200,8 @@ export default function Words() {
           <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
         </div>
       </div>
+
+      <EditWordDialog word={editing} onClose={() => setEditing(null)} />
 
       <ConfirmDialog
         open={action !== null}
