@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: npm # also covers pnpm lockfiles
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cloudflare:
+        patterns: ["wrangler", "@cloudflare/*"]
+      ui:
+        patterns: ["radix-ui", "@radix-ui/*", "shadcn", "recharts", "sonner", "lucide-react", "tailwindcss", "@tailwindcss/*", "tw-animate-css", "class-variance-authority", "cn"]
+      types:
+        patterns: ["@types/*"]
+      auth-db:
+        patterns: ["better-auth", "drizzle-orm", "drizzle-kit"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
