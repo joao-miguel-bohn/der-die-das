@@ -75,6 +75,15 @@ Sign in with the admin account and open **Import**. CSV (comma, semicolon or tab
 
 Re-importing the same word (same article + word) updates it, so you can fix the lists and import again; progress is kept.
 
+## Security notes
+
+- **Headers:** the app ships a strict Content-Security-Policy and related headers via [public/_headers](public/_headers) (static pages) and Hono `secureHeaders` (API). Scripts, fonts, images and network calls are limited to the app's own origin; inline *styles* are allowed because the UI libraries set style attributes at runtime.
+- **zod runs without JIT in the browser** ([src/web/zod-config.ts](src/web/zod-config.ts)) so the CSP doesn't need `unsafe-eval`. Keep that import first in `main.tsx`.
+- **Request size:** JSON bodies are capped at 16 KB (1 MB for the word import).
+- **Rate limiting:** not done in code. Add a Cloudflare WAF rate-limiting rule for `/api/*` in the dashboard (Security → WAF → Rate limiting rules; the free plan includes one rule), e.g. 120 requests per 10 seconds per IP.
+- **Access control:** set `ALLOWED_EMAILS` in `wrangler.jsonc` to restrict who can sign in; leave it empty to allow any Google account.
+- **CI:** the Cloudflare token is only exposed to the deploy step; GitHub Actions are pinned to commit SHAs (Dependabot keeps them current).
+
 ## Free-plan budget
 
 100k requests/day, 10 ms CPU/request, D1: 5M rows read and 100k rows written per day. One answer writes about 3 rows, so a

@@ -2,3 +2,8 @@
 allowBuilds:
   esbuild: true
   workerd: true
+
+# drizzle-kit pulls in a legacy loader that depends on an esbuild with a known dev-server advisory
+# (GHSA-67mh-4wv8-2f99). Force the patched version already used elsewhere in the tree.
+overrides:
+  "esbuild@<=0.24.2": "0.25.12"
