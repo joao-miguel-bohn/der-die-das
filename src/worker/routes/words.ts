@@ -1,8 +1,10 @@
 import { zValidator } from '@hono/zod-validator'
-import { and, asc, eq, isNull, like, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
-import { levelSchema } from '@shared/schemas'
+import { chunk } from '@shared/chunk'
+import { deleteWordsSchema, levelSchema } from '@shared/schemas'
 import { statusForBox } from '@shared/srs'
 import type { AppEnv } from '../middleware'
 import { schema } from '../db'
@@ -16,8 +18,11 @@ const querySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
 })
 const PAGE_SIZE = 50
+// Each id is one bound parameter; D1 allows at most 100 per statement.
+const DELETE_CHUNK = 50
 
-export const wordsRoutes = new Hono<AppEnv>().get('/', zValidator('query', querySchema), async (c) => {
+export const wordsRoutes = new Hono<AppEnv>()
+  .get('/', zValidator('query', querySchema), async (c) => {
   const { db, userId } = c.var
   const { level, status, q, page } = c.req.valid('query')
   const box = sql`coalesce(${progress.box}, 0)`
@@ -60,3 +65,18 @@ export const wordsRoutes = new Hono<AppEnv>().get('/', zValidator('query', query
     items: rows.map((r) => ({ ...r, box: Number(r.box), status: statusForBox(Number(r.box)) })),
   })
 })
+
+  /**
+   * Admin only. Removes words from the shared vocabulary; the foreign keys cascade, so every user's
+   * progress and attempt history for these words goes with them.
+   */
+  .post('/delete', zValidator('json', deleteWordsSchema), async (c) => {
+    if (!c.var.isAdmin) throw new HTTPException(403, { message: 'Only the admin can delete words' })
+    const ids = [...new Set(c.req.valid('json').ids)]
+    const { db } = c.var
+    const [first, ...rest] = chunk(ids, DELETE_CHUNK).map((part) =>
+      db.delete(words).where(inArray(words.id, part)).returning({ id: words.id }),
+    )
+    const results = first ? await db.batch([first, ...rest]) : []
+    return c.json({ deleted: results.reduce((n, rows) => n + rows.length, 0) })
+  })

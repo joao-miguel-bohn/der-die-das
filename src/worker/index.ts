@@ -5,6 +5,7 @@ import { secureHeaders } from 'hono/secure-headers'
 import { getAuth } from './auth'
 import { requireUser, type AppEnv } from './middleware'
 import { importRoutes } from './routes/import'
+import { progressRoutes } from './routes/progress'
 import { settingsRoutes } from './routes/settings'
 import { statsRoutes } from './routes/stats'
 import { studyRoutes } from './routes/study'
@@ -20,6 +21,7 @@ const api = new Hono<AppEnv>()
   .route('/study', studyRoutes)
   .route('/stats', statsRoutes)
   .route('/words', wordsRoutes)
+  .route('/progress', progressRoutes)
   .route('/import', importRoutes)
   .route('/settings', settingsRoutes)
 

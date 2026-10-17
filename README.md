@@ -7,6 +7,7 @@ bring back what you keep getting wrong. Runs entirely on the Cloudflare **free**
 - **Learning engine:** Leitner boxes (1, 3, 7, 14, 30 days). A wrong answer sends the word back to box 1.
 - **Modes:** *Type it* (article + word, spaced repetition), *Pick article* (der/die/das drill, weakest words first), *Sprint* (10 random words, timed).
 - **Dashboard:** due words, streak, article vs. spelling accuracy, 30-day trend, der/die/das confusion grid, hardest words, progress per level.
+- **Managing words:** the admin can delete words (one or many) from the Words page; this removes them for everyone, including all users' progress on them. Every user can reset the progress of individual or selected words, or everything (Settings → Reset progress, which also clears history, charts and streak).
 - **Why Google only:** the free plan allows 10 ms CPU per request, which password hashing would exceed.
 
 ## Local development
