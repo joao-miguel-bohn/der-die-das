@@ -20,7 +20,7 @@ const sql = [
   `INSERT OR IGNORE INTO user (id, name, email, email_verified, created_at, updated_at) VALUES ('${userId}', 'Dev User', '${esc(email)}', 1, ${now}, ${now});`,
   `INSERT INTO session (id, expires_at, token, created_at, updated_at, user_id) VALUES ('${randomBytes(8).toString('hex')}', ${expires}, '${token}', ${now}, ${now}, '${userId}');`,
 ].join(' ')
-execFileSync('npx', ['wrangler', 'd1', 'execute', 'sprache-lernen', '--local', '--command', sql], { stdio: 'ignore' })
+execFileSync('pnpm', ['exec', 'wrangler', 'd1', 'execute', 'sprache-lernen', '--local', '--command', sql], { stdio: 'ignore' })
 
 const signature = createHmac('sha256', secret).update(token).digest('base64')
 console.log(`better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`)

@@ -1,0 +1,4 @@
+# Only these packages may run install scripts (they download/compile native binaries).
+allowBuilds:
+  esbuild: true
+  workerd: true
