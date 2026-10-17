@@ -42,3 +42,14 @@ export const sessionQuerySchema = z.object({
 export const settingsSchema = z.object({
   dailyNewLimit: z.number().int().min(0).max(100),
 })
+
+const wordIdList = z.array(z.number().int().positive()).min(1).max(500)
+
+export const deleteWordsSchema = z.object({ ids: wordIdList })
+
+/** Resetting everything must be asked for explicitly; an empty body never wipes anything. */
+export const resetProgressSchema = z.discriminatedUnion('scope', [
+  z.object({ scope: z.literal('all') }),
+  z.object({ scope: z.literal('words'), wordIds: wordIdList }),
+])
+export type ResetProgressPayload = z.infer<typeof resetProgressSchema>
