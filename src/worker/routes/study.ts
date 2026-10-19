@@ -21,6 +21,17 @@ export interface StudyWord {
   kind: 'due' | 'new' | 'practice'
 }
 
+export interface LearnWord {
+  id: number
+  lemma: string
+  translation: string
+  level: 'A1' | 'A2' | 'B1'
+  article: 'der' | 'die' | 'das'
+  plural: string | null
+  example: string | null
+  kind: 'new' | 'practice'
+}
+
 const DEFAULT_NEW_LIMIT = 10
 
 export const studyRoutes = new Hono<AppEnv>()
@@ -64,11 +75,48 @@ export const studyRoutes = new Hono<AppEnv>()
             .from(words)
             .leftJoin(progress, and(eq(progress.wordId, words.id), eq(progress.userId, userId)))
             .where(and(or(isNull(progress.wordId), eq(progress.box, 0)), levelFilter))
-            .orderBy(sql`random()`)
+            // Words already met (e.g. in Learn) come first, so learning flows straight into typing.
+            .orderBy(sql`${progress.wordId} is null`, sql`random()`)
             .limit(newAllowed)
         : []
       return c.json({
         items: [...due.map((r) => toItem(r, 'due')), ...fresh.map((r) => toItem(r, 'new'))],
+      })
+    }
+
+    if (mode === 'learn') {
+      const learnCols = {
+        id: words.id,
+        lemma: words.lemma,
+        translation: words.translation,
+        level: words.level,
+        article: words.article,
+        plural: words.plural,
+        example: words.example,
+      }
+      // Up to half the session: words not yet in the quiz boxes that were missed more often than known.
+      const struggling = await db
+        .select(learnCols)
+        .from(progress)
+        .innerJoin(words, eq(words.id, progress.wordId))
+        .where(and(eq(progress.userId, userId), eq(progress.box, 0), gt(progress.wrong, progress.correct), levelFilter))
+        .orderBy(sql`random()`)
+        .limit(Math.ceil(size / 2))
+      const unseen = await db
+        .select(learnCols)
+        .from(words)
+        .leftJoin(progress, and(eq(progress.wordId, words.id), eq(progress.userId, userId)))
+        .where(and(isNull(progress.wordId), levelFilter))
+        .orderBy(sql`random()`)
+        .limit(size - struggling.length)
+
+      const strugglingIds = new Set(struggling.map((w) => w.id))
+      const items = [...struggling, ...unseen].sort(() => Math.random() - 0.5)
+      return c.json({
+        items: items.map((r): LearnWord => ({
+          ...r,
+          kind: strugglingIds.has(r.id) ? 'practice' : 'new',
+        })),
       })
     }
 
@@ -108,6 +156,47 @@ export const studyRoutes = new Hono<AppEnv>()
 
     const [word] = await db.select().from(words).where(eq(words.id, payload.wordId))
     if (!word) throw new HTTPException(404, { message: 'Unknown word' })
+
+    if (payload.mode === 'learn') {
+      // Guesses on unlearned words leave the Leitner schedule alone and stay out of daily_stats (accuracy trend).
+      const knew = payload.chosenArticle === word.article
+      await db.batch([
+        db
+          .insert(progress)
+          .values({
+            userId,
+            wordId: word.id,
+            box: 0,
+            dueAt: 0,
+            seen: 1,
+            correct: knew ? 1 : 0,
+            wrong: knew ? 0 : 1,
+            lastSeenAt: now,
+            firstSeenDate: null,
+          })
+          .onConflictDoUpdate({
+            target: [progress.userId, progress.wordId],
+            set: {
+              seen: sql`${progress.seen} + 1`,
+              correct: sql`${progress.correct} + ${knew ? 1 : 0}`,
+              wrong: sql`${progress.wrong} + ${knew ? 0 : 1}`,
+              lastSeenAt: now,
+            },
+          }),
+        db.insert(attempts).values({
+          userId,
+          wordId: word.id,
+          mode: 'learn',
+          typed: null,
+          chosenArticle: payload.chosenArticle,
+          correctArticle: word.article,
+          articleOk: knew,
+          lemmaOk: true,
+          createdAt: now,
+        }),
+      ])
+      return c.json({ recorded: true })
+    }
 
     const typed = payload.mode === 'type' ? payload.typed : null
     const chosen = payload.mode === 'type' ? parseTyped(payload.typed).article : payload.chosenArticle

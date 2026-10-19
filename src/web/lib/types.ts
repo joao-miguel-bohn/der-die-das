@@ -1,4 +1,4 @@
-import type { Article, Level, Mode, WordStatus } from '@shared/types'
+import type { Article, Level, WordStatus } from '@shared/types'
 import type { Hint } from '@shared/hints'
 
 export interface Me { userId: string; email: string; isAdmin: boolean }
@@ -9,6 +9,17 @@ export interface StudyWord {
   level: Level
   lemma?: string
   kind: 'due' | 'new' | 'practice'
+}
+
+export interface LearnWord {
+  id: number
+  lemma: string
+  translation: string
+  level: Level
+  article: Article
+  plural: string | null
+  example: string | null
+  kind: 'new' | 'practice'
 }
 
 export interface AnswerResult {
@@ -24,7 +35,7 @@ export interface AnswerResult {
 
 export type AnswerBody =
   | { mode: 'type'; wordId: number; typed: string }
-  | { mode: Exclude<Mode, 'type'>; wordId: number; chosenArticle: Article | null }
+  | { mode: 'pick' | 'sprint' | 'learn'; wordId: number; chosenArticle: Article | null }
 
 export interface Overview {
   levels: { level: Level; total: number; fresh: number; learning: number; mastered: number }[]

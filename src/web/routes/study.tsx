@@ -3,19 +3,20 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { LEVELS, MODES, type Mode } from '@shared/types'
+import { LearnRunner } from '@/components/study/learn-runner'
 import { Runner } from '@/components/study/runner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
-import type { StudyWord } from '@/lib/types'
+import type { LearnWord, StudyWord } from '@/lib/types'
 
 const MODE_INFO: Record<Mode, { label: string; size: number; description: string }> = {
   type: {
     label: 'Type it',
     size: 20,
-    description: 'Spaced repetition. You see the meaning and type article + word (e.g. "das Haus"). Due words come first, then new ones.',
+    description: 'Spaced repetition. You see the meaning and type article + word (e.g. "das Haus"). Due words come first, then new ones (words you met in Learn first).',
   },
   pick: {
     label: 'Pick article',
@@ -27,6 +28,11 @@ const MODE_INFO: Record<Mode, { label: string; size: number; description: string
     size: 10,
     description: '10 random words against the clock. Keys 1 / 2 / 3.',
   },
+  learn: {
+    label: 'Learn',
+    size: 10,
+    description: 'Guess the article first (keys 1 / 2 / 3, Space if you don\'t know), then see it with memory aids. Words you miss come back in the same session.',
+  },
 }
 
 const ALL = 'all'
@@ -36,14 +42,14 @@ export default function Study() {
   const requested = params.get('mode')
   const [mode, setMode] = useState<Mode>((MODES as readonly string[]).includes(requested ?? '') ? (requested as Mode) : 'type')
   const [level, setLevel] = useState(ALL)
-  const [items, setItems] = useState<StudyWord[] | null>(null)
+  const [items, setItems] = useState<StudyWord[] | LearnWord[] | null>(null)
   const [round, setRound] = useState(0)
 
   const start = useMutation({
     mutationFn: () => {
       const q = new URLSearchParams({ mode, size: String(MODE_INFO[mode].size) })
       if (level !== ALL) q.set('level', level)
-      return api.get<{ items: StudyWord[] }>(`/study/session?${q}`)
+      return api.get<{ items: StudyWord[] | LearnWord[] }>(`/study/session?${q}`)
     },
     onSuccess: (data) => {
       if (data.items.length === 0) {
@@ -57,7 +63,10 @@ export default function Study() {
   })
 
   if (items) {
-    return <Runner key={round} mode={mode} items={items} onExit={() => setItems(null)} />
+    if (mode === 'learn') {
+      return <LearnRunner key={round} items={items as LearnWord[]} onExit={() => setItems(null)} />
+    }
+    return <Runner key={round} mode={mode} items={items as StudyWord[]} onExit={() => setItems(null)} />
   }
 
   return (

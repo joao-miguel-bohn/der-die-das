@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
-import { and, desc, eq, gt, gte, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, gte, lte, ne, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { computeStreak, DAY_MS, localDate } from '@shared/dates'
@@ -40,7 +40,8 @@ export const statsRoutes = new Hono<AppEnv>()
         lemmaOk: sql<number>`coalesce(sum(case when ${attempts.mode} = 'type' then ${attempts.lemmaOk} else 0 end), 0)`,
       })
       .from(attempts)
-      .where(eq(attempts.userId, userId))
+      // Learn-mode guesses on unlearned words would drag down accuracy without measuring recall.
+      .where(and(eq(attempts.userId, userId), ne(attempts.mode, 'learn')))
 
     const dates = await db
       .select({ date: dailyStats.date })
