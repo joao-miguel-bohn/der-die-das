@@ -26,13 +26,11 @@ export const importPayloadSchema = z.object({
   rows: z.array(importRowSchema).min(1).max(500),
 })
 
-export const ratingSchema = z.enum(['again', 'good', 'easy'])
-
 export const answerPayloadSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('type'), wordId: z.number().int().positive(), typed: z.string().max(200) }),
   z.object({ mode: z.literal('pick'), wordId: z.number().int().positive(), chosenArticle: articleSchema.nullable() }),
   z.object({ mode: z.literal('sprint'), wordId: z.number().int().positive(), chosenArticle: articleSchema.nullable() }),
-  z.object({ mode: z.literal('learn'), wordId: z.number().int().positive(), rating: ratingSchema }),
+  z.object({ mode: z.literal('learn'), wordId: z.number().int().positive(), chosenArticle: articleSchema.nullable() }),
 ])
 export type AnswerPayload = z.infer<typeof answerPayloadSchema>
 

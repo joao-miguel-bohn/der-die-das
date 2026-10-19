@@ -1,94 +1,99 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useState } from 'react'
+import { Check, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { hintFor } from '@shared/hints'
+import { ARTICLES, type Article } from '@shared/types'
 import { ArticleBadge } from '@/components/article-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { api } from '@/lib/api'
-import type { LearnWord, Rating } from '@/lib/types'
+import type { AnswerBody, LearnWord } from '@/lib/types'
 
 const MAX_ROUNDS = 3
 
 interface LearnEntry {
   word: LearnWord
-  rating: Rating
+  correct: boolean
 }
 
 export function LearnRunner({ items, onExit }: { items: LearnWord[]; onExit: () => void }) {
   const queryClient = useQueryClient()
   const [queue, setQueue] = useState<LearnWord[]>(() => [...items])
   const [index, setIndex] = useState(0)
-  const [phase, setPhase] = useState<'front' | 'back'>('front')
+  // undefined = not answered yet, null = "I don't know"
+  const [guess, setGuess] = useState<Article | null | undefined>(undefined)
   const [entries, setEntries] = useState<LearnEntry[]>([])
-  const [roundCounts] = useState(() => new Map<number, number>())
+  const rounds = useRef(new Map<number, number>())
   const finished = index >= queue.length
   const word = queue[index]
-  const completed = new Set(entries.filter((e) => e.rating !== 'again').map((e) => e.word.id)).size
+  const known = new Set(entries.filter((e) => e.correct).map((e) => e.word.id)).size
 
   const answer = useMutation({
-    mutationFn: (body: { mode: 'learn'; wordId: number; rating: Rating }) =>
-      api.post<{ recorded: true }>('/study/answer', body),
+    mutationFn: (body: AnswerBody) => api.post<{ recorded: true }>('/study/answer', body),
     onSuccess: () => {
-      for (const key of ['overview', 'hardest', 'words']) {
+      for (const key of ['overview', 'confusion', 'hardest', 'words']) {
         void queryClient.invalidateQueries({ queryKey: [key] })
       }
     },
     onError: (e) => toast.error(`Could not save: ${e.message}`),
   })
 
-  const rate = useCallback(
-    (rating: Rating) => {
-      if (!word) return
-      const count = (roundCounts.get(word.id) ?? 0) + 1
-      roundCounts.set(word.id, count)
+  const submit = useCallback(
+    (chosen: Article | null) => {
+      if (!word || guess !== undefined) return
+      const correct = chosen === word.article
+      const count = (rounds.current.get(word.id) ?? 0) + 1
+      rounds.current.set(word.id, count)
 
-      answer.mutate({ mode: 'learn', wordId: word.id, rating })
-      setEntries((prev) => [...prev, { word, rating }])
-
-      if (rating === 'again' && count < MAX_ROUNDS) {
-        setQueue((prev) => [...prev, word])
-      }
-
-      setIndex((i) => i + 1)
-      setPhase('front')
+      answer.mutate({ mode: 'learn', wordId: word.id, chosenArticle: chosen })
+      setGuess(chosen)
+      setEntries((prev) => [...prev, { word, correct }])
+      if (!correct && count < MAX_ROUNDS) setQueue((prev) => [...prev, word])
     },
-    [word, answer, roundCounts],
+    [word, guess, answer],
   )
+
+  const next = useCallback(() => {
+    setGuess(undefined)
+    setIndex((i) => i + 1)
+  }, [])
 
   useEffect(() => {
     if (finished) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (phase === 'front' && (e.key === ' ' || e.key === 'Enter')) {
+      if (guess === undefined) {
+        const article = ARTICLES[Number(e.key) - 1]
+        if (article) submit(article)
+        else if (e.key === ' ') {
+          e.preventDefault()
+          submit(null)
+        }
+      } else if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault()
-        setPhase('back')
-      }
-      if (phase === 'back') {
-        if (e.key === '1') rate('again')
-        if (e.key === '2') rate('good')
-        if (e.key === '3') rate('easy')
+        next()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [phase, finished, rate])
+  }, [finished, guess, submit, next])
 
   if (finished) {
     return <LearnSummary entries={entries} items={items} onExit={onExit} />
   }
   if (!word) return null
 
+  const answered = guess !== undefined
   const hint = hintFor(word.lemma, word.article)
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
-        <Progress value={(completed / items.length) * 100} className="flex-1" />
+        <Progress value={(known / items.length) * 100} className="flex-1" />
         <span>
-          {completed} / {items.length}
+          {known} / {items.length}
         </span>
         <Button variant="ghost" size="sm" onClick={onExit}>
           End
@@ -101,29 +106,20 @@ export function LearnRunner({ items, onExit }: { items: LearnWord[]; onExit: () 
             <Badge variant="outline">{word.level}</Badge>
             <Badge variant="secondary">{word.kind === 'new' ? 'new' : 'review'}</Badge>
           </div>
-          {phase === 'front' ? (
-            <>
-              <CardTitle className="pt-2 text-3xl">{word.lemma}</CardTitle>
-              <CardDescription className="text-base">{word.translation}</CardDescription>
-            </>
+          {answered ? (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <ArticleBadge article={word.article} className="px-3 py-1 text-2xl" />
+              <span className="text-3xl font-bold">{word.lemma}</span>
+            </div>
           ) : (
-            <>
-              <div className="flex items-center justify-center gap-3 pt-2">
-                <ArticleBadge article={word.article} className="text-2xl px-3 py-1" />
-                <span className="text-3xl font-bold">{word.lemma}</span>
-              </div>
-              <CardDescription className="text-base">{word.translation}</CardDescription>
-            </>
+            <CardTitle className="pt-2 text-3xl">{word.lemma}</CardTitle>
           )}
+          <CardDescription className="text-base">{word.translation}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {phase === 'front' ? (
-            <Button autoFocus className="w-full h-14 text-lg" onClick={() => setPhase('back')}>
-              Reveal
-              <span className="ml-2 text-xs font-normal opacity-60">Space</span>
-            </Button>
-          ) : (
+          {answered ? (
             <>
+              <GuessResult guess={guess} article={word.article} />
               <div className="space-y-1.5 rounded-lg border p-4 text-sm">
                 {hint && (
                   <p>
@@ -133,36 +129,27 @@ export function LearnRunner({ items, onExit }: { items: LearnWord[]; onExit: () 
                 {word.plural && <p className="text-muted-foreground">Plural: die {word.plural}</p>}
                 {word.example && <p className="italic text-muted-foreground">{word.example}</p>}
                 {!hint && !word.plural && !word.example && (
-                  <p className="text-muted-foreground">No additional hints for this word.</p>
+                  <p className="text-muted-foreground">Say it out loud once: “{word.article} {word.lemma}”.</p>
                 )}
               </div>
+              <Button autoFocus className="w-full" onClick={next}>
+                Continue
+              </Button>
+            </>
+          ) : (
+            <>
               <div className="grid grid-cols-3 gap-2">
-                <Button
-                  variant="outline"
-                  className="h-14 flex-col gap-0 border-red-300 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/40"
-                  onClick={() => rate('again')}
-                >
-                  Again
-                  <span className="text-xs font-normal text-muted-foreground">1</span>
-                </Button>
-                <Button
-                  autoFocus
-                  variant="outline"
-                  className="h-14 flex-col gap-0 border-blue-300 hover:bg-blue-50 dark:border-blue-900 dark:hover:bg-blue-950/40"
-                  onClick={() => rate('good')}
-                >
-                  Good
-                  <span className="text-xs font-normal text-muted-foreground">2</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-14 flex-col gap-0 border-green-300 hover:bg-green-50 dark:border-green-900 dark:hover:bg-green-950/40"
-                  onClick={() => rate('easy')}
-                >
-                  Easy
-                  <span className="text-xs font-normal text-muted-foreground">3</span>
-                </Button>
+                {ARTICLES.map((a, i) => (
+                  <Button key={a} variant="outline" className="h-16 flex-col gap-0 text-xl" onClick={() => submit(a)}>
+                    {a}
+                    <span className="text-xs font-normal text-muted-foreground">{i + 1}</span>
+                  </Button>
+                ))}
               </div>
+              <Button variant="ghost" className="w-full" onClick={() => submit(null)}>
+                I don't know
+                <span className="ml-2 text-xs font-normal text-muted-foreground">Space</span>
+              </Button>
             </>
           )}
         </CardContent>
@@ -171,23 +158,36 @@ export function LearnRunner({ items, onExit }: { items: LearnWord[]; onExit: () 
   )
 }
 
-function LearnSummary({ entries, items, onExit }: { entries: LearnEntry[]; items: LearnWord[]; onExit: () => void }) {
-  const remembered = new Set(
-    entries
-      .filter((e) => e.rating !== 'again')
-      .map((e) => e.word.id),
+function GuessResult({ guess, article }: { guess: Article | null; article: Article }) {
+  if (guess === article) {
+    return (
+      <p className="flex items-center justify-center gap-2 font-medium text-green-700 dark:text-green-400">
+        <Check className="size-5" /> Right!
+      </p>
+    )
+  }
+  if (guess === null) {
+    return <p className="text-center text-muted-foreground">Now you know — it comes back later in this session.</p>
+  }
+  return (
+    <p className="flex items-center justify-center gap-2 font-medium text-red-700 dark:text-red-400">
+      <X className="size-5" /> You guessed <ArticleBadge article={guess} />, but it's <ArticleBadge article={article} />
+    </p>
   )
-  const needsPractice = items.filter((w) => !remembered.has(w.id))
+}
+
+function LearnSummary({ entries, items, onExit }: { entries: LearnEntry[]; items: LearnWord[]; onExit: () => void }) {
+  const lastResult = new Map(entries.map((e) => [e.word.id, e.correct]))
+  const knownCount = items.filter((w) => lastResult.get(w.id)).length
+  const needsPractice = items.filter((w) => lastResult.has(w.id) && !lastResult.get(w.id))
 
   return (
     <Card className="mx-auto max-w-lg">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">
-          {items.length ? `${remembered.size} / ${items.length} remembered` : 'Session ended'}
+          {entries.length ? `${knownCount} / ${items.length} known` : 'Session ended'}
         </CardTitle>
-        {needsPractice.length > 0 && (
-          <CardDescription>{needsPractice.length} still need practice</CardDescription>
-        )}
+        {needsPractice.length > 0 && <CardDescription>{needsPractice.length} still need practice</CardDescription>}
       </CardHeader>
       <CardContent className="space-y-4">
         {needsPractice.length > 0 && (

@@ -31,7 +31,7 @@ const MODE_INFO: Record<Mode, { label: string; size: number; description: string
   learn: {
     label: 'Learn',
     size: 10,
-    description: 'Flashcards. See a word, think about the article, then reveal it with memory aids. Rate yourself — words you struggle with come back.',
+    description: 'Guess the article first (keys 1 / 2 / 3, Space if you don\'t know), then see it with memory aids. Words you miss come back in the same session.',
   },
 }
 

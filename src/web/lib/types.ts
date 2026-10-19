@@ -11,8 +11,6 @@ export interface StudyWord {
   kind: 'due' | 'new' | 'practice'
 }
 
-export type Rating = 'again' | 'good' | 'easy'
-
 export interface LearnWord {
   id: number
   lemma: string
@@ -37,8 +35,7 @@ export interface AnswerResult {
 
 export type AnswerBody =
   | { mode: 'type'; wordId: number; typed: string }
-  | { mode: 'pick' | 'sprint'; wordId: number; chosenArticle: Article | null }
-  | { mode: 'learn'; wordId: number; rating: Rating }
+  | { mode: 'pick' | 'sprint' | 'learn'; wordId: number; chosenArticle: Article | null }
 
 export interface Overview {
   levels: { level: Level; total: number; fresh: number; learning: number; mastered: number }[]

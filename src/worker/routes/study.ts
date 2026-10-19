@@ -158,30 +158,43 @@ export const studyRoutes = new Hono<AppEnv>()
     if (!word) throw new HTTPException(404, { message: 'Unknown word' })
 
     if (payload.mode === 'learn') {
-      // Self-ratings are not graded answers: they stay out of attempts/daily_stats so accuracy and the confusion matrix remain honest.
-      const knew = payload.rating !== 'again'
-      await db
-        .insert(progress)
-        .values({
+      // Guesses on unlearned words leave the Leitner schedule alone and stay out of daily_stats (accuracy trend).
+      const knew = payload.chosenArticle === word.article
+      await db.batch([
+        db
+          .insert(progress)
+          .values({
+            userId,
+            wordId: word.id,
+            box: 0,
+            dueAt: 0,
+            seen: 1,
+            correct: knew ? 1 : 0,
+            wrong: knew ? 0 : 1,
+            lastSeenAt: now,
+            firstSeenDate: null,
+          })
+          .onConflictDoUpdate({
+            target: [progress.userId, progress.wordId],
+            set: {
+              seen: sql`${progress.seen} + 1`,
+              correct: sql`${progress.correct} + ${knew ? 1 : 0}`,
+              wrong: sql`${progress.wrong} + ${knew ? 0 : 1}`,
+              lastSeenAt: now,
+            },
+          }),
+        db.insert(attempts).values({
           userId,
           wordId: word.id,
-          box: 0,
-          dueAt: 0,
-          seen: 1,
-          correct: knew ? 1 : 0,
-          wrong: knew ? 0 : 1,
-          lastSeenAt: now,
-          firstSeenDate: null,
-        })
-        .onConflictDoUpdate({
-          target: [progress.userId, progress.wordId],
-          set: {
-            seen: sql`${progress.seen} + 1`,
-            correct: sql`${progress.correct} + ${knew ? 1 : 0}`,
-            wrong: sql`${progress.wrong} + ${knew ? 0 : 1}`,
-            lastSeenAt: now,
-          },
-        })
+          mode: 'learn',
+          typed: null,
+          chosenArticle: payload.chosenArticle,
+          correctArticle: word.article,
+          articleOk: knew,
+          lemmaOk: true,
+          createdAt: now,
+        }),
+      ])
       return c.json({ recorded: true })
     }
 

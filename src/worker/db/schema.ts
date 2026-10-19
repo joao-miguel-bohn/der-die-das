@@ -138,7 +138,7 @@ export const attempts = sqliteTable(
     wordId: integer('word_id')
       .notNull()
       .references(() => words.id, { onDelete: 'cascade' }),
-    mode: text('mode', { enum: ['type', 'pick', 'sprint'] }).notNull(),
+    mode: text('mode', { enum: ['type', 'pick', 'sprint', 'learn'] }).notNull(),
     typed: text('typed'),
     chosenArticle: text('chosen_article'),
     correctArticle: text('correct_article').notNull(),
