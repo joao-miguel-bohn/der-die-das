@@ -1,4 +1,4 @@
-import type { Article, Level, Mode, WordStatus } from '@shared/types'
+import type { Article, Level, WordStatus } from '@shared/types'
 import type { Hint } from '@shared/hints'
 
 export interface Me { userId: string; email: string; isAdmin: boolean }
