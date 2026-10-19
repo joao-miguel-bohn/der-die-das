@@ -3,13 +3,14 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { LEVELS, MODES, type Mode } from '@shared/types'
+import { LearnRunner } from '@/components/study/learn-runner'
 import { Runner } from '@/components/study/runner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
-import type { StudyWord } from '@/lib/types'
+import type { LearnWord, StudyWord } from '@/lib/types'
 
 const MODE_INFO: Record<Mode, { label: string; size: number; description: string }> = {
   type: {
@@ -27,6 +28,11 @@ const MODE_INFO: Record<Mode, { label: string; size: number; description: string
     size: 10,
     description: '10 random words against the clock. Keys 1 / 2 / 3.',
   },
+  learn: {
+    label: 'Learn',
+    size: 10,
+    description: 'Flashcards. See a word, think about the article, then reveal it with memory aids. Rate yourself — words you struggle with come back.',
+  },
 }
 
 const ALL = 'all'
@@ -36,14 +42,14 @@ export default function Study() {
   const requested = params.get('mode')
   const [mode, setMode] = useState<Mode>((MODES as readonly string[]).includes(requested ?? '') ? (requested as Mode) : 'type')
   const [level, setLevel] = useState(ALL)
-  const [items, setItems] = useState<StudyWord[] | null>(null)
+  const [items, setItems] = useState<StudyWord[] | LearnWord[] | null>(null)
   const [round, setRound] = useState(0)
 
   const start = useMutation({
     mutationFn: () => {
       const q = new URLSearchParams({ mode, size: String(MODE_INFO[mode].size) })
       if (level !== ALL) q.set('level', level)
-      return api.get<{ items: StudyWord[] }>(`/study/session?${q}`)
+      return api.get<{ items: StudyWord[] | LearnWord[] }>(`/study/session?${q}`)
     },
     onSuccess: (data) => {
       if (data.items.length === 0) {
@@ -57,7 +63,10 @@ export default function Study() {
   })
 
   if (items) {
-    return <Runner key={round} mode={mode} items={items} onExit={() => setItems(null)} />
+    if (mode === 'learn') {
+      return <LearnRunner key={round} items={items as LearnWord[]} onExit={() => setItems(null)} />
+    }
+    return <Runner key={round} mode={mode} items={items as StudyWord[]} onExit={() => setItems(null)} />
   }
 
   return (

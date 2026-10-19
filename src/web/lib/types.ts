@@ -11,6 +11,19 @@ export interface StudyWord {
   kind: 'due' | 'new' | 'practice'
 }
 
+export type Rating = 'again' | 'good' | 'easy'
+
+export interface LearnWord {
+  id: number
+  lemma: string
+  translation: string
+  level: Level
+  article: Article
+  plural: string | null
+  example: string | null
+  kind: 'new' | 'practice'
+}
+
 export interface AnswerResult {
   articleOk: boolean
   lemmaOk: boolean
@@ -24,7 +37,8 @@ export interface AnswerResult {
 
 export type AnswerBody =
   | { mode: 'type'; wordId: number; typed: string }
-  | { mode: Exclude<Mode, 'type'>; wordId: number; chosenArticle: Article | null }
+  | { mode: 'pick' | 'sprint'; wordId: number; chosenArticle: Article | null }
+  | { mode: 'learn'; wordId: number; rating: Rating }
 
 export interface Overview {
   levels: { level: Level; total: number; fresh: number; learning: number; mastered: number }[]
