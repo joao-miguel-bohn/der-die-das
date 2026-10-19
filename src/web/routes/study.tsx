@@ -16,7 +16,7 @@ const MODE_INFO: Record<Mode, { label: string; size: number; description: string
   type: {
     label: 'Type it',
     size: 20,
-    description: 'Spaced repetition. You see the meaning and type article + word (e.g. "das Haus"). Due words come first, then new ones.',
+    description: 'Spaced repetition. You see the meaning and type article + word (e.g. "das Haus"). Due words come first, then new ones (words you met in Learn first).',
   },
   pick: {
     label: 'Pick article',

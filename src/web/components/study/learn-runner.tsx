@@ -31,6 +31,11 @@ export function LearnRunner({ items, onExit }: { items: LearnWord[]; onExit: () 
   const answer = useMutation({
     mutationFn: (body: { mode: 'learn'; wordId: number; rating: Rating }) =>
       api.post<{ recorded: true }>('/study/answer', body),
+    onSuccess: () => {
+      for (const key of ['overview', 'hardest', 'words']) {
+        void queryClient.invalidateQueries({ queryKey: [key] })
+      }
+    },
     onError: (e) => toast.error(`Could not save: ${e.message}`),
   })
 
@@ -52,14 +57,6 @@ export function LearnRunner({ items, onExit }: { items: LearnWord[]; onExit: () 
     },
     [word, answer, roundCounts],
   )
-
-  useEffect(() => {
-    if (finished) {
-      for (const key of ['overview', 'trend', 'confusion', 'hardest', 'words']) {
-        void queryClient.invalidateQueries({ queryKey: [key] })
-      }
-    }
-  }, [finished, queryClient])
 
   useEffect(() => {
     if (finished) return
