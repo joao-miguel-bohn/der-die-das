@@ -27,7 +27,7 @@ export const importPayloadSchema = z.object({
 })
 
 export const answerPayloadSchema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('type'), wordId: z.number().int().positive(), typed: z.string().max(200) }),
+  z.object({ mode: z.literal('type'), wordId: z.number().int().positive(), typed: z.string().max(200), peeked: z.boolean().optional() }),
   z.object({ mode: z.literal('pick'), wordId: z.number().int().positive(), chosenArticle: articleSchema.nullable() }),
   z.object({ mode: z.literal('sprint'), wordId: z.number().int().positive(), chosenArticle: articleSchema.nullable() }),
   z.object({ mode: z.literal('learn'), wordId: z.number().int().positive(), chosenArticle: articleSchema.nullable() }),
@@ -38,6 +38,12 @@ export const sessionQuerySchema = z.object({
   mode: modeSchema.default('type'),
   level: levelSchema.optional(),
   size: z.coerce.number().int().min(1).max(50).default(20),
+})
+
+/** Type it: reveal the first `letters` letters of the German word. */
+export const peekQuerySchema = z.object({
+  wordId: z.coerce.number().int().positive(),
+  letters: z.coerce.number().int().min(1).max(100),
 })
 
 export const settingsSchema = z.object({
