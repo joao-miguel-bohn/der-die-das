@@ -25,7 +25,7 @@ export function Layout() {
       <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-2">
           <span className="mr-2 font-semibold tracking-tight">der·die·das</span>
-          <nav className="flex flex-1 gap-1 overflow-x-auto">
+          <nav className="hidden flex-1 gap-1 md:flex">
             {links.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
@@ -39,10 +39,11 @@ export function Layout() {
                 }
               >
                 <Icon className="size-4" />
-                <span className="hidden sm:inline">{label}</span>
+                {label}
               </NavLink>
             ))}
           </nav>
+          <div className="flex-1 md:hidden" />
           <Button
             variant="ghost"
             size="icon"
@@ -64,9 +65,28 @@ export function Layout() {
           </Button>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto max-w-5xl px-4 pt-6 pb-24 md:pb-6">
         <Outlet />
       </main>
+      {/* Phones get a bottom tab bar: the header has no room for every link. */}
+      <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t bg-background/90 backdrop-blur md:hidden">
+        {links.map(({ to, label, icon: Icon, end }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            className={({ isActive }) =>
+              cn(
+                'flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium text-muted-foreground',
+                isActive && 'text-foreground',
+              )
+            }
+          >
+            <Icon className="size-5" />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   )
 }
