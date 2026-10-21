@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception'
 import { secureHeaders } from 'hono/secure-headers'
 import { getAuth } from './auth'
 import { requireUser, type AppEnv } from './middleware'
+import { adminRoutes } from './routes/admin'
 import { importRoutes } from './routes/import'
 import { progressRoutes } from './routes/progress'
 import { statsRoutes } from './routes/stats'
@@ -22,6 +23,7 @@ const api = new Hono<AppEnv>()
   .route('/words', wordsRoutes)
   .route('/progress', progressRoutes)
   .route('/import', importRoutes)
+  .route('/admin', adminRoutes)
 
 const app = new Hono<AppEnv>()
   // The static app gets its headers from public/_headers; this covers every /api response.

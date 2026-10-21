@@ -57,4 +57,21 @@ export interface WordRow {
   plural: string | null; example: string | null
   box: number; status: WordStatus; seen: number; correct: number; wrong: number
 }
+export interface AdminUserRow {
+  id: string
+  name: string
+  email: string
+  createdAt: number
+  lastActiveAt: number | null
+  metInLearn: number
+  learning: number
+  mastered: number
+  answers: number
+  correct: number
+  accuracy: number | null
+  activeDays: number
+}
+export interface AdminUsersPage {
+  total: number; page: number; pageSize: number; totalWords: number; activeWindowDays: number; items: AdminUserRow[]
+}
 export interface WordsPage { total: number; page: number; pageSize: number; items: WordRow[] }
