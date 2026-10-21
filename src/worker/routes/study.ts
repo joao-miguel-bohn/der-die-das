@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
-import { and, asc, desc, eq, gt, isNull, lte, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, exists, gt, isNull, lte, notInArray, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { checkPick, checkTyped, parseTyped } from '@shared/answer'
@@ -69,14 +69,18 @@ export const studyRoutes = new Hono<AppEnv>()
         .where(and(eq(progress.userId, userId), eq(progress.firstSeenDate, today)))
       const newAllowed = Math.max(0, Math.min(size - due.length, limit - startedToday))
 
+      // New words come only from Learn, so you type words you've already been shown. Most recently learned first.
+      const metInLearn = db
+        .select({ one: sql`1` })
+        .from(attempts)
+        .where(and(eq(attempts.userId, userId), eq(attempts.wordId, words.id), eq(attempts.mode, 'learn')))
       const fresh = newAllowed
         ? await db
             .select(cols)
-            .from(words)
-            .leftJoin(progress, and(eq(progress.wordId, words.id), eq(progress.userId, userId)))
-            .where(and(or(isNull(progress.wordId), eq(progress.box, 0)), levelFilter))
-            // Words already met (e.g. in Learn) come first, so learning flows straight into typing.
-            .orderBy(sql`${progress.wordId} is null`, sql`random()`)
+            .from(progress)
+            .innerJoin(words, eq(words.id, progress.wordId))
+            .where(and(eq(progress.userId, userId), eq(progress.box, 0), exists(metInLearn), levelFilter))
+            .orderBy(desc(progress.lastSeenAt))
             .limit(newAllowed)
         : []
       return c.json({
