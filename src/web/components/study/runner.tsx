@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ARTICLES, type Article, type Mode } from '@shared/types'
 import { ArticleBadge } from '@/components/article-badge'
@@ -18,6 +18,7 @@ interface Entry {
   result: AnswerResult
   typed?: string
   chosen?: Article | null
+  peeked?: boolean
 }
 
 const AUTO_ADVANCE_MS = 800
@@ -50,14 +51,14 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
   })
 
   const submit = useCallback(
-    (extra: { typed: string } | { chosen: Article | null }) => {
+    (extra: { typed: string; peeked: boolean } | { chosen: Article | null }) => {
       if (!word || current || answer.isPending) return
       const body: AnswerBody = 'typed' in extra
-        ? { mode: 'type', wordId: word.id, typed: extra.typed }
+        ? { mode: 'type', wordId: word.id, typed: extra.typed, peeked: extra.peeked }
         : { mode: mode === 'sprint' ? 'sprint' : 'pick', wordId: word.id, chosenArticle: extra.chosen }
       answer.mutate(body, {
         onSuccess: (result) => {
-          const entry: Entry = { word, result, ...('typed' in extra ? { typed: extra.typed } : { chosen: extra.chosen }) }
+          const entry: Entry = { word, result, ...('typed' in extra ? { typed: extra.typed, peeked: extra.peeked } : { chosen: extra.chosen }) }
           setCurrent(entry)
         },
       })
@@ -125,9 +126,10 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
           {mode === 'type' ? (
             <TypeInput
               key={word.id}
+              wordId={word.id}
               entry={current}
               pending={answer.isPending}
-              onSubmit={(typed) => submit({ typed })}
+              onSubmit={(typed, peeked) => submit({ typed, peeked })}
               onNext={next}
             />
           ) : (
@@ -144,17 +146,33 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
   )
 }
 
-function TypeInput({ entry, pending, onSubmit, onNext }: {
+function TypeInput({ wordId, entry, pending, onSubmit, onNext }: {
+  wordId: number
   entry: Entry | null
   pending: boolean
-  onSubmit: (typed: string) => void
+  onSubmit: (typed: string, peeked: boolean) => void
   onNext: () => void
 }) {
   const [value, setValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Revealed start of the German word, e.g. "Sch____". Fetched so the session never carries the answer.
+  const [peek, setPeek] = useState<{ masked: string; shown: number } | null>(null)
+  const peekMore = useMutation({
+    mutationFn: () => api.get<{ masked: string; shown: number }>(`/study/peek?wordId=${wordId}&letters=${(peek?.shown ?? 0) + 1}`),
+    onSuccess: (p) => { setPeek(p); inputRef.current?.focus() },
+    onError: (e) => toast.error(e.message),
+  })
+  const allShown = peek ? peek.shown >= Array.from(peek.masked).length - 1 : false
   if (!entry) {
     return (
-      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (value.trim()) onSubmit(value) }}>
+      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (value.trim()) onSubmit(value, peek !== null) }}>
+        {peek && (
+          <p className="text-center font-mono text-xl tracking-[0.3em]" aria-label={`Starts with ${peek.masked.slice(0, peek.shown)}`}>
+            {peek.masked}
+          </p>
+        )}
         <Input
+          ref={inputRef}
           autoFocus
           autoComplete="off"
           autoCapitalize="off"
@@ -167,14 +185,20 @@ function TypeInput({ entry, pending, onSubmit, onNext }: {
         />
         <div className="flex gap-2">
           <Button type="submit" className="flex-1" disabled={pending || !value.trim()}>Check</Button>
-          <Button type="button" variant="outline" disabled={pending} onClick={() => onSubmit('')}>I don't know</Button>
+          <Button type="button" variant="outline" disabled={pending} onClick={() => onSubmit('', peek !== null)}>I don't know</Button>
         </div>
+        <Button type="button" variant="ghost" className="w-full" disabled={pending || peekMore.isPending || allShown} onClick={() => peekMore.mutate()}>
+          {peek ? 'Show another letter' : 'Show a letter'}
+        </Button>
       </form>
     )
   }
   return (
     <div className="space-y-3">
       <Feedback result={entry.result} typed={entry.typed} />
+      {entry.peeked && entry.result.correct && (
+        <p className="text-center text-sm text-muted-foreground">You used a hint, so this word stays in its box and comes back sooner.</p>
+      )}
       {entry.result.correct ? (
         <Button autoFocus className="w-full" onClick={onNext}>Continue</Button>
       ) : (

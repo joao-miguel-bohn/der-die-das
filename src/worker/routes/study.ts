@@ -5,7 +5,8 @@ import { HTTPException } from 'hono/http-exception'
 import { checkPick, checkTyped, parseTyped } from '@shared/answer'
 import { localDate } from '@shared/dates'
 import { hintFor } from '@shared/hints'
-import { answerPayloadSchema, sessionQuerySchema } from '@shared/schemas'
+import { maskLemma } from '@shared/peek'
+import { answerPayloadSchema, peekQuerySchema, sessionQuerySchema } from '@shared/schemas'
 import { nextState } from '@shared/srs'
 import type { AppEnv } from '../middleware'
 import { schema } from '../db'
@@ -154,6 +155,14 @@ export const studyRoutes = new Hono<AppEnv>()
     return c.json({ items: rows.map((r) => toItem(r, 'practice')) })
   })
 
+  .get('/peek', zValidator('query', peekQuerySchema), async (c) => {
+    const { wordId, letters } = c.req.valid('query')
+    const [word] = await c.var.db.select({ lemma: words.lemma }).from(words).where(eq(words.id, wordId))
+    if (!word) throw new HTTPException(404, { message: 'Unknown word' })
+    // Only the word: the article is what Type it is drilling.
+    return c.json(maskLemma(word.lemma, letters))
+  })
+
   .post('/answer', zValidator('json', answerPayloadSchema), async (c) => {
     const payload = c.req.valid('json')
     const db = c.var.db
@@ -224,7 +233,9 @@ export const studyRoutes = new Hono<AppEnv>()
       .from(attempts)
       .where(and(eq(attempts.userId, userId), eq(attempts.wordId, word.id), eq(attempts.mode, 'learn')))
       .limit(1)).length
-    const next = unlearned ? current : nextState(current, check.correct, payload.mode, now)
+    // A correct answer after peeking at letters isn't full recall, so the word stays in its box.
+    const peeked = payload.mode === 'type' && payload.peeked === true
+    const next = unlearned || (peeked && check.correct) ? current : nextState(current, check.correct, payload.mode, now)
 
     await db.batch([
       db

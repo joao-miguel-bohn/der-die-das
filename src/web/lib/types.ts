@@ -34,7 +34,7 @@ export interface AnswerResult {
 }
 
 export type AnswerBody =
-  | { mode: 'type'; wordId: number; typed: string }
+  | { mode: 'type'; wordId: number; typed: string; peeked?: boolean }
   | { mode: 'pick' | 'sprint' | 'learn'; wordId: number; chosenArticle: Article | null }
 
 export interface Overview {
