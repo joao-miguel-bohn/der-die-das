@@ -46,7 +46,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Daily new words</CardTitle>
-          <CardDescription>How many never-seen words a review session may introduce per day.</CardDescription>
+          <CardDescription>How many words from Learn can start spaced-repetition reviews in Type it each day.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Label htmlFor="limit">New words per day (0–100)</Label>
