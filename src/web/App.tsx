@@ -6,6 +6,7 @@ import ImportPage from '@/routes/import'
 import Login from '@/routes/login'
 import SettingsPage from '@/routes/settings'
 import Study from '@/routes/study'
+import UsersPage from '@/routes/users'
 import Words from '@/routes/words'
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="study" element={<Study />} />
         <Route path="words" element={<Words />} />
         <Route path="import" element={<ImportPage />} />
+        <Route path="users" element={<UsersPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

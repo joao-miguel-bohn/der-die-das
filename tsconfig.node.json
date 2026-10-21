@@ -21,5 +21,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "drizzle.config.ts", "vitest.config.ts", "tests", "scripts"]
+  "include": ["vite.config.ts", "drizzle.config.ts", "vitest.config.ts", "tests", "scripts"],
+  // Tests of Worker code need the Worker's Env types, so tsconfig.worker.json checks them.
+  "exclude": ["tests/worker"]
 }

@@ -34,6 +34,12 @@ export const answerPayloadSchema = z.discriminatedUnion('mode', [
 ])
 export type AnswerPayload = z.infer<typeof answerPayloadSchema>
 
+export const adminUsersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  q: z.string().trim().max(100).optional(),
+  sort: z.enum(['active', 'joined']).default('active'),
+})
+
 export const sessionQuerySchema = z.object({
   mode: modeSchema.default('type'),
   level: levelSchema.optional(),
