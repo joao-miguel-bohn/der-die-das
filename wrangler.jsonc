@@ -12,6 +12,12 @@
 			"/api/*"
 		]
 	},
+	// Served on workers.dev and both custom domains.
+	"workers_dev": true,
+	"routes": [
+		{ "pattern": "der-die-das.joaomiguel.com.br", "custom_domain": true },
+		{ "pattern": "der-die-das.joaobohn.com.br", "custom_domain": true }
+	],
 	"observability": {
 		"enabled": true
 	},
@@ -24,7 +30,8 @@
 		}
 	],
 	"vars": {
-		"BETTER_AUTH_URL": "https://sprache-lernen.joao-miguel-bohn.workers.dev",
+		// Every origin the app is served from; Google needs <origin>/api/auth/callback/google for each.
+		"BETTER_AUTH_URL": "https://der-die-das.joaomiguel.com.br,https://der-die-das.joaobohn.com.br,https://sprache-lernen.joao-miguel-bohn.workers.dev",
 		"ADMIN_EMAIL": "joao.miguel.bohn@gmail.com",
 		"ALLOWED_EMAILS": ""
 	}
