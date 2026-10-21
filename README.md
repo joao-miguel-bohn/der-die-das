@@ -35,7 +35,9 @@ Other scripts: `pnpm test`, `pnpm run typecheck`, `pnpm run lint`, `pnpm run db:
 Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Web application). Authorized redirect URIs:
 
 - `http://localhost:5173/api/auth/callback/google`
-- `https://<your-worker>.<your-subdomain>.workers.dev/api/auth/callback/google`
+- `https://<domain>/api/auth/callback/google` for every domain listed in `BETTER_AUTH_URL`
+
+If a domain is missing here, Google refuses the sign-in with `redirect_uri_mismatch`.
 
 ## Deploy (free)
 
@@ -47,7 +49,12 @@ pnpm exec wrangler d1 create sprache-lernen        # copy database_id into wrang
 In `wrangler.jsonc` set:
 
 - `d1_databases[0].database_id` to the id from above,
-- `vars.BETTER_AUTH_URL` to your final URL (`https://sprache-lernen.<subdomain>.workers.dev`),
+- `vars.BETTER_AUTH_URL` to every URL the app is served from, comma-separated, e.g.
+  `https://sprache-lernen.<subdomain>.workers.dev,https://words.example.com`. The first is the fallback. Sign-in
+  builds Google's callback from the domain you are on, so each domain needs its own redirect URI (above), and you
+  sign in separately on each one: cookies are per domain, your progress is shared.
+- `routes` with `{ "pattern": "<domain>", "custom_domain": true }` for each custom domain (its DNS zone must be
+  on the same Cloudflare account),
 - `vars.ADMIN_EMAIL` to the Google account allowed to import words,
 - `vars.ALLOWED_EMAILS` to a comma-separated list of accounts allowed to sign in (empty = anyone with a Google account; recommended to set it).
 
