@@ -11,7 +11,7 @@ import { nextState } from '@shared/srs'
 import type { AppEnv } from '../middleware'
 import { schema } from '../db'
 
-const { words, userWordProgress: progress, attempts, dailyStats, userSettings } = schema
+const { words, userWordProgress: progress, attempts, dailyStats } = schema
 
 export interface StudyWord {
   id: number
@@ -19,7 +19,7 @@ export interface StudyWord {
   level: 'A1' | 'A2' | 'B1'
   /** Only sent for article-only modes, where the lemma is part of the question. */
   lemma?: string
-  kind: 'due' | 'new' | 'practice'
+  kind: 'due' | 'new' | 'ahead' | 'practice'
 }
 
 export interface LearnWord {
@@ -33,11 +33,9 @@ export interface LearnWord {
   kind: 'new' | 'practice'
 }
 
-const DEFAULT_NEW_LIMIT = 10
-
 export const studyRoutes = new Hono<AppEnv>()
   .get('/session', zValidator('query', sessionQuerySchema), async (c) => {
-    const { mode, level, size } = c.req.valid('query')
+    const { mode, level, size, ahead } = c.req.valid('query')
     const db = c.var.db
     const userId = c.var.userId
     const now = Date.now()
@@ -59,6 +57,18 @@ export const studyRoutes = new Hono<AppEnv>()
         .where(and(eq(attempts.userId, userId), eq(attempts.wordId, words.id), eq(attempts.mode, 'learn'))),
     )
 
+    if (mode === 'type' && ahead) {
+      // Extra practice when nothing is due: the words that come up soonest.
+      const early = await db
+        .select(cols)
+        .from(progress)
+        .innerJoin(words, eq(words.id, progress.wordId))
+        .where(and(eq(progress.userId, userId), gt(progress.box, 0), gt(progress.dueAt, now), levelFilter))
+        .orderBy(asc(progress.dueAt))
+        .limit(size)
+      return c.json({ items: early.map((r) => toItem(r, 'ahead')) })
+    }
+
     if (mode === 'type') {
       const due = await db
         .select(cols)
@@ -68,16 +78,8 @@ export const studyRoutes = new Hono<AppEnv>()
         .orderBy(asc(progress.dueAt))
         .limit(size)
 
-      const today = localDate(now)
-      const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId))
-      const limit = settings?.dailyNewLimit ?? DEFAULT_NEW_LIMIT
-      const [{ n: startedToday = 0 } = {}] = await db
-        .select({ n: sql<number>`count(*)` })
-        .from(progress)
-        .where(and(eq(progress.userId, userId), eq(progress.firstSeenDate, today)))
-      const newAllowed = Math.max(0, Math.min(size - due.length, limit - startedToday))
-
-      // Most recently learned first, so learning flows straight into typing.
+      // No daily cap: how much you take on is set by how much you Learn. Most recently learned first.
+      const newAllowed = size - due.length
       const fresh = newAllowed
         ? await db
             .select(cols)
@@ -235,7 +237,9 @@ export const studyRoutes = new Hono<AppEnv>()
       .limit(1)).length
     // A correct answer after peeking at letters isn't full recall, so the word stays in its box.
     const peeked = payload.mode === 'type' && payload.peeked === true
-    const next = unlearned || (peeked && check.correct) ? current : nextState(current, check.correct, payload.mode, now)
+    // Practicing ahead: a correct answer before the word is due isn't spaced recall, so it keeps its schedule.
+    const early = current.box > 0 && current.dueAt > now
+    const next = unlearned || (check.correct && (peeked || early)) ? current : nextState(current, check.correct, payload.mode, now)
 
     await db.batch([
       db
@@ -249,7 +253,7 @@ export const studyRoutes = new Hono<AppEnv>()
           correct: check.correct ? 1 : 0,
           wrong: check.correct ? 0 : 1,
           lastSeenAt: now,
-          // Only words that entered the Leitner boxes count against the daily new-word limit.
+          // The day the word entered the Leitner boxes.
           firstSeenDate: next.box > 0 ? today : null,
         })
         .onConflictDoUpdate({

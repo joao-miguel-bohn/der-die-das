@@ -1,12 +1,12 @@
 import { zValidator } from '@hono/zod-validator'
-import { and, desc, eq, gt, gte, lte, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, gt, gte, lte, ne, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { computeStreak, DAY_MS, localDate } from '@shared/dates'
 import type { AppEnv } from '../middleware'
 import { schema } from '../db'
 
-const { words, userWordProgress: progress, attempts, dailyStats, userSettings } = schema
+const { words, userWordProgress: progress, attempts, dailyStats } = schema
 
 export const statsRoutes = new Hono<AppEnv>()
   .get('/overview', async (c) => {
@@ -55,11 +55,20 @@ export const statsRoutes = new Hono<AppEnv>()
       .from(dailyStats)
       .where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, today)))
 
-    const [started] = await db
+    // Met in Learn but not yet typed: what the next Type it session will bring in.
+    const [ready] = await db
       .select({ n: sql<number>`count(*)` })
       .from(progress)
-      .where(and(eq(progress.userId, userId), eq(progress.firstSeenDate, today)))
-    const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId))
+      .where(and(
+        eq(progress.userId, userId),
+        eq(progress.box, 0),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(attempts)
+            .where(and(eq(attempts.userId, userId), eq(attempts.wordId, progress.wordId), eq(attempts.mode, 'learn'))),
+        ),
+      ))
 
     const totals = perLevel.reduce(
       (t, l) => ({
@@ -81,7 +90,7 @@ export const statsRoutes = new Hono<AppEnv>()
       })),
       totals,
       dueNow: due?.n ?? 0,
-      newLeftToday: Math.max(0, (settings?.dailyNewLimit ?? 10) - (started?.n ?? 0)),
+      readyToType: ready?.n ?? 0,
       streak: computeStreak(dates.map((d) => d.date), now),
       today: { attempts: todayRow?.attempts ?? 0, correct: todayRow?.correct ?? 0 },
       accuracy: {

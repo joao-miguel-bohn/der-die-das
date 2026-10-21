@@ -108,7 +108,7 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
         <CardHeader className="text-center">
           <div className="flex justify-center gap-2">
             <Badge variant="outline">{word.level}</Badge>
-            {word.kind !== 'practice' && <Badge variant="secondary">{word.kind === 'new' ? 'new' : 'review'}</Badge>}
+            {word.kind !== 'practice' && <Badge variant="secondary">{word.kind === 'new' ? 'new' : word.kind === 'ahead' ? 'early' : 'review'}</Badge>}
           </div>
           {word.lemma ? (
             <>
@@ -196,8 +196,12 @@ function TypeInput({ wordId, entry, pending, onSubmit, onNext }: {
   return (
     <div className="space-y-3">
       <Feedback result={entry.result} typed={entry.typed} />
-      {entry.peeked && entry.result.correct && (
-        <p className="text-center text-sm text-muted-foreground">You used a hint, so this word stays in its box and comes back sooner.</p>
+      {entry.result.correct && (entry.word.kind === 'ahead' || entry.peeked) && (
+        <p className="text-center text-sm text-muted-foreground">
+          {entry.word.kind === 'ahead'
+            ? 'Not due yet, so this word keeps its schedule.'
+            : 'You used a hint, so this word stays in its box and comes back sooner.'}
+        </p>
       )}
       {entry.result.correct ? (
         <Button autoFocus className="w-full" onClick={onNext}>Continue</Button>

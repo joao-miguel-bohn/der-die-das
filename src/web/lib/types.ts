@@ -8,7 +8,7 @@ export interface StudyWord {
   translation: string
   level: Level
   lemma?: string
-  kind: 'due' | 'new' | 'practice'
+  kind: 'due' | 'new' | 'ahead' | 'practice'
 }
 
 export interface LearnWord {
@@ -41,7 +41,7 @@ export interface Overview {
   levels: { level: Level; total: number; fresh: number; learning: number; mastered: number }[]
   totals: { total: number; fresh: number; learning: number; mastered: number }
   dueNow: number
-  newLeftToday: number
+  readyToType: number
   streak: number
   today: { attempts: number; correct: number }
   accuracy: { attempts: number; article: number | null; lemma: number | null }

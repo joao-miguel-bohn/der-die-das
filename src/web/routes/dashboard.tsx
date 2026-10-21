@@ -55,7 +55,7 @@ export default function Dashboard() {
             <CardTitle className="text-3xl">{o.dueNow}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            +{o.newLeftToday} new words allowed today
+            +{o.readyToType} learned {o.readyToType === 1 ? 'word' : 'words'} ready to type
           </CardContent>
         </Card>
         <Card>
