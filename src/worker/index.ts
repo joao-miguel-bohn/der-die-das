@@ -6,7 +6,6 @@ import { getAuth } from './auth'
 import { requireUser, type AppEnv } from './middleware'
 import { importRoutes } from './routes/import'
 import { progressRoutes } from './routes/progress'
-import { settingsRoutes } from './routes/settings'
 import { statsRoutes } from './routes/stats'
 import { studyRoutes } from './routes/study'
 import { wordsRoutes } from './routes/words'
@@ -23,7 +22,6 @@ const api = new Hono<AppEnv>()
   .route('/words', wordsRoutes)
   .route('/progress', progressRoutes)
   .route('/import', importRoutes)
-  .route('/settings', settingsRoutes)
 
 const app = new Hono<AppEnv>()
   // The static app gets its headers from public/_headers; this covers every /api response.

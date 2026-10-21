@@ -120,7 +120,7 @@ export const userWordProgress = sqliteTable(
     correct: integer('correct').notNull().default(0),
     wrong: integer('wrong').notNull().default(0),
     lastSeenAt: integer('last_seen_at'),
-    firstSeenDate: text('first_seen_date'), // YYYY-MM-DD in app timezone; drives the daily new-word limit
+    firstSeenDate: text('first_seen_date'), // YYYY-MM-DD in app timezone; the day the word entered the Leitner boxes
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.wordId] }),

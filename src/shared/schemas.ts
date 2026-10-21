@@ -38,16 +38,14 @@ export const sessionQuerySchema = z.object({
   mode: modeSchema.default('type'),
   level: levelSchema.optional(),
   size: z.coerce.number().int().min(1).max(50).default(20),
+  /** Type it: words already in review but not due yet. */
+  ahead: z.stringbool().default(false),
 })
 
 /** Type it: reveal the first `letters` letters of the German word. */
 export const peekQuerySchema = z.object({
   wordId: z.coerce.number().int().positive(),
   letters: z.coerce.number().int().min(1).max(100),
-})
-
-export const settingsSchema = z.object({
-  dailyNewLimit: z.number().int().min(0).max(100),
 })
 
 const wordIdList = z.array(z.number().int().positive()).min(1).max(500)

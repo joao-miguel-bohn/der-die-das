@@ -15,7 +15,7 @@ export const progressRoutes = new Hono<AppEnv>().post('/reset', zValidator('json
 
   if (body.scope === 'all') {
     // Everything this user has learned: Leitner state, answer history, and the daily stats behind
-    // the streak and the trend chart. Settings are kept.
+    // the streak and the trend chart.
     const [progressRows] = await db.batch([
       db.delete(progress).where(eq(progress.userId, userId)).returning({ id: progress.wordId }),
       db.delete(attempts).where(eq(attempts.userId, userId)),

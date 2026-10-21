@@ -47,24 +47,33 @@ export default function Study() {
   const [level, setLevel] = useState(ALL)
   const [items, setItems] = useState<StudyWord[] | LearnWord[] | null>(null)
   const [round, setRound] = useState(0)
+  // The selection whose Type it session came back empty, so the "practice ahead" offer shows only for it.
+  const [emptyFor, setEmptyFor] = useState<string | null>(null)
+  const selection = `${mode}:${level}`
 
   const start = useMutation({
-    mutationFn: () => {
+    mutationFn: (ahead: boolean) => {
       const q = new URLSearchParams({ mode, size: String(MODE_INFO[mode].size) })
       if (level !== ALL) q.set('level', level)
+      if (ahead) q.set('ahead', 'true')
       return api.get<{ items: StudyWord[] | LearnWord[] }>(`/study/session?${q}`)
     },
-    onSuccess: (data) => {
+    onSuccess: (data, ahead) => {
       if (data.items.length === 0) {
+        if (mode === 'type' && !ahead) {
+          setEmptyFor(selection)
+          return
+        }
         toast.info(
           mode === 'learn'
             ? 'No words found for this selection.'
             : mode === 'type'
-              ? 'Nothing due right now. Learn some new words first, then type them here.'
+              ? 'No words in review yet. Learn some words first, then type them here.'
               : 'No words from Learn yet for this selection. Learn some words first, then practice them here.',
         )
         return
       }
+      setEmptyFor(null)
       setItems(data.items)
       setRound((r) => r + 1)
     },
@@ -110,9 +119,21 @@ export default function Study() {
             {LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button className="w-full" size="lg" disabled={start.isPending} onClick={() => start.mutate()}>
+        <Button className="w-full" size="lg" disabled={start.isPending} onClick={() => start.mutate(false)}>
           {start.isPending ? 'Loading…' : 'Start'}
         </Button>
+        {mode === 'type' && emptyFor === selection && (
+          <div className="space-y-3 rounded-lg border p-3 text-center text-sm">
+            <p>
+              Nothing due and no learned words waiting. Learn more words, or practice ahead: words that aren't due yet.
+              Practicing ahead doesn't move them up a box.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setMode('learn')}>Learn new words</Button>
+              <Button className="flex-1" disabled={start.isPending} onClick={() => start.mutate(true)}>Practice ahead</Button>
+            </div>
+          </div>
+        )}
         <p className="text-center text-sm text-muted-foreground">
           No words yet? <Link className="underline" to="/import">Import a list</Link>.
         </p>
