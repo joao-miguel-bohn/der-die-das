@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import { ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
@@ -16,17 +17,17 @@ const MODE_INFO: Record<Mode, { label: string; size: number; description: string
   type: {
     label: 'Type it',
     size: 20,
-    description: 'Spaced repetition. You see the meaning and type article + word (e.g. "das Haus"). Due words come first, then new ones (words you met in Learn first).',
+    description: 'Spaced repetition. You see the meaning and type article + word (e.g. "das Haus"). Due words come first, then words you met in Learn.',
   },
   pick: {
     label: 'Pick article',
     size: 20,
-    description: 'Drill der / die / das on the word itself. Starts with the words you get wrong most often. Keys 1 / 2 / 3.',
+    description: 'Drill der / die / das on words you met in Learn. Starts with the words you get wrong most often. Keys 1 / 2 / 3.',
   },
   sprint: {
     label: 'Sprint',
     size: 10,
-    description: '10 random words against the clock. Keys 1 / 2 / 3.',
+    description: '10 random words you met in Learn, against the clock. Keys 1 / 2 / 3.',
   },
   learn: {
     label: 'Learn',
@@ -36,6 +37,8 @@ const MODE_INFO: Record<Mode, { label: string; size: number; description: string
 }
 
 const ALL = 'all'
+/** Modes that drill words you have already met in Learn. */
+const PRACTICE_MODES = MODES.filter((m) => m !== 'learn')
 
 export default function Study() {
   const [params] = useSearchParams()
@@ -53,7 +56,13 @@ export default function Study() {
     },
     onSuccess: (data) => {
       if (data.items.length === 0) {
-        toast.info(mode === 'type' ? 'Nothing due right now and no new words left today.' : 'No words found for this selection.')
+        toast.info(
+          mode === 'learn'
+            ? 'No words found for this selection.'
+            : mode === 'type'
+              ? 'Nothing due right now. Learn some new words first, then type them here.'
+              : 'No words from Learn yet for this selection. Learn some words first, then practice them here.',
+        )
         return
       }
       setItems(data.items)
@@ -77,8 +86,21 @@ export default function Study() {
       </CardHeader>
       <CardContent className="space-y-4">
         <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
-          <TabsList className="w-full">
-            {MODES.map((m) => <TabsTrigger key={m} value={m}>{MODE_INFO[m].label}</TabsTrigger>)}
+          {/* Learn first, then practice: two groups make the order visible. Stacked on narrow screens. */}
+          <TabsList className="flex w-full flex-col items-stretch gap-1 bg-transparent p-0 group-data-horizontal/tabs:h-auto sm:flex-row sm:items-start sm:gap-2">
+            <div className="flex flex-col gap-1">
+              <div className="flex h-8 rounded-lg bg-muted p-[3px]">
+                <TabsTrigger value="learn" className="px-4">{MODE_INFO.learn.label}</TabsTrigger>
+              </div>
+              <span className="text-center text-xs">Step 1</span>
+            </div>
+            <ChevronRight className="size-4 rotate-90 self-center sm:mt-2 sm:rotate-0 sm:self-start" aria-hidden />
+            <div className="flex flex-1 flex-col gap-1">
+              <div className="flex h-8 rounded-lg bg-muted p-[3px]">
+                {PRACTICE_MODES.map((m) => <TabsTrigger key={m} value={m}>{MODE_INFO[m].label}</TabsTrigger>)}
+              </div>
+              <span className="text-center text-xs">Step 2 · Practice</span>
+            </div>
           </TabsList>
         </Tabs>
         <Select value={level} onValueChange={setLevel}>

@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
-import { and, asc, desc, eq, gt, isNull, lte, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, exists, gt, isNull, lte, notInArray, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { checkPick, checkTyped, parseTyped } from '@shared/answer'
@@ -50,6 +50,13 @@ export const studyRoutes = new Hono<AppEnv>()
       ...(showLemma ? { lemma: r.lemma } : {}),
     })
     const cols = { id: words.id, translation: words.translation, level: words.level, lemma: words.lemma }
+    // Quiz modes only use words you have already been shown in Learn.
+    const metInLearn = exists(
+      db
+        .select({ one: sql`1` })
+        .from(attempts)
+        .where(and(eq(attempts.userId, userId), eq(attempts.wordId, words.id), eq(attempts.mode, 'learn'))),
+    )
 
     if (mode === 'type') {
       const due = await db
@@ -69,14 +76,14 @@ export const studyRoutes = new Hono<AppEnv>()
         .where(and(eq(progress.userId, userId), eq(progress.firstSeenDate, today)))
       const newAllowed = Math.max(0, Math.min(size - due.length, limit - startedToday))
 
+      // Most recently learned first, so learning flows straight into typing.
       const fresh = newAllowed
         ? await db
             .select(cols)
-            .from(words)
-            .leftJoin(progress, and(eq(progress.wordId, words.id), eq(progress.userId, userId)))
-            .where(and(or(isNull(progress.wordId), eq(progress.box, 0)), levelFilter))
-            // Words already met (e.g. in Learn) come first, so learning flows straight into typing.
-            .orderBy(sql`${progress.wordId} is null`, sql`random()`)
+            .from(progress)
+            .innerJoin(words, eq(words.id, progress.wordId))
+            .where(and(eq(progress.userId, userId), eq(progress.box, 0), metInLearn, levelFilter))
+            .orderBy(desc(progress.lastSeenAt))
             .limit(newAllowed)
         : []
       return c.json({
@@ -126,7 +133,7 @@ export const studyRoutes = new Hono<AppEnv>()
         .select(cols)
         .from(progress)
         .innerJoin(words, eq(words.id, progress.wordId))
-        .where(and(eq(progress.userId, userId), gt(progress.wrong, 0), levelFilter))
+        .where(and(eq(progress.userId, userId), gt(progress.wrong, 0), metInLearn, levelFilter))
         .orderBy(desc(sql`cast(${progress.wrong} as real) / ${progress.seen}`), desc(progress.wrong))
         .limit(size)
       const fill = size - weak.length
@@ -134,7 +141,7 @@ export const studyRoutes = new Hono<AppEnv>()
         ? await db
             .select(cols)
             .from(words)
-            .where(and(weak.length ? notInArray(words.id, weak.map((w) => w.id)) : undefined, levelFilter))
+            .where(and(weak.length ? notInArray(words.id, weak.map((w) => w.id)) : undefined, metInLearn, levelFilter))
             .orderBy(sql`random()`)
             .limit(fill)
         : []
@@ -142,8 +149,8 @@ export const studyRoutes = new Hono<AppEnv>()
       return c.json({ items: items.map((r) => toItem(r, 'practice')) })
     }
 
-    // sprint: random words from everything
-    const rows = await db.select(cols).from(words).where(levelFilter).orderBy(sql`random()`).limit(size)
+    // sprint: random words
+    const rows = await db.select(cols).from(words).where(and(metInLearn, levelFilter)).orderBy(sql`random()`).limit(size)
     return c.json({ items: rows.map((r) => toItem(r, 'practice')) })
   })
 
@@ -210,12 +217,14 @@ export const studyRoutes = new Hono<AppEnv>()
       .select()
       .from(progress)
       .where(and(eq(progress.userId, userId), eq(progress.wordId, word.id)))
-    const next = nextState(
-      { box: existing?.box ?? 0, dueAt: existing?.dueAt ?? 0 },
-      check.correct,
-      payload.mode,
-      now,
-    )
+    const current = { box: existing?.box ?? 0, dueAt: existing?.dueAt ?? 0 }
+    // A Pick/Sprint miss on a word never met in Learn would otherwise put it in the boxes, making it due in Type it.
+    const unlearned = payload.mode !== 'type' && !check.correct && current.box === 0 && !(await db
+      .select({ id: attempts.id })
+      .from(attempts)
+      .where(and(eq(attempts.userId, userId), eq(attempts.wordId, word.id), eq(attempts.mode, 'learn')))
+      .limit(1)).length
+    const next = unlearned ? current : nextState(current, check.correct, payload.mode, now)
 
     await db.batch([
       db
