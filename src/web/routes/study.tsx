@@ -22,12 +22,12 @@ const MODE_INFO: Record<Mode, { label: string; size: number; description: string
   pick: {
     label: 'Pick article',
     size: 20,
-    description: 'Drill der / die / das on the word itself. Starts with the words you get wrong most often. Keys 1 / 2 / 3.',
+    description: 'Drill der / die / das on words you met in Learn. Starts with the words you get wrong most often. Keys 1 / 2 / 3.',
   },
   sprint: {
     label: 'Sprint',
     size: 10,
-    description: '10 random words against the clock. Keys 1 / 2 / 3.',
+    description: '10 random words you met in Learn, against the clock. Keys 1 / 2 / 3.',
   },
   learn: {
     label: 'Learn',
@@ -56,7 +56,13 @@ export default function Study() {
     },
     onSuccess: (data) => {
       if (data.items.length === 0) {
-        toast.info(mode === 'type' ? 'Nothing due right now. Learn some new words first, then type them here.' : 'No words found for this selection.')
+        toast.info(
+          mode === 'learn'
+            ? 'No words found for this selection.'
+            : mode === 'type'
+              ? 'Nothing due right now. Learn some new words first, then type them here.'
+              : 'No words from Learn yet for this selection. Learn some words first, then practice them here.',
+        )
         return
       }
       setItems(data.items)
