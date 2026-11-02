@@ -11,6 +11,7 @@ export interface StudyWord {
   lemma?: string
   kind: WordKind
   history: WordHistory | null
+  sameMeaning?: number
 }
 
 export interface LearnWord {
@@ -23,6 +24,11 @@ export interface LearnWord {
   example: string | null
   kind: 'new' | 'practice'
   history: WordHistory | null
+}
+
+/** Type it: the answer was another word with the same meaning, so nothing was recorded. */
+export interface SameMeaningResult {
+  sameMeaning: { article: Article; lemma: string; articleOk: boolean }
 }
 
 export interface AnswerResult {
