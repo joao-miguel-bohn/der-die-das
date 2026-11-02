@@ -3,6 +3,7 @@ import { and, desc, eq, exists, gt, gte, lte, ne, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { computeStreak, DAY_MS, localDate } from '@shared/dates'
+import { MAX_BOX } from '@shared/srs'
 import type { AppEnv } from '../middleware'
 import { schema } from '../db'
 
@@ -13,6 +14,7 @@ export const statsRoutes = new Hono<AppEnv>()
     const { db, userId } = c.var
     const now = Date.now()
     const today = localDate(now)
+    const inBox = (box: number) => sql<number>`sum(case when ${progress.box} = ${box} then 1 else 0 end)`
 
     const perLevel = await db
       .select({
@@ -20,7 +22,11 @@ export const statsRoutes = new Hono<AppEnv>()
         total: sql<number>`count(*)`,
         fresh: sql<number>`sum(case when ${progress.box} is null or ${progress.box} = 0 then 1 else 0 end)`,
         learning: sql<number>`sum(case when ${progress.box} between 1 and 4 then 1 else 0 end)`,
-        mastered: sql<number>`sum(case when ${progress.box} = 5 then 1 else 0 end)`,
+        mastered: inBox(MAX_BOX),
+        box1: inBox(1),
+        box2: inBox(2),
+        box3: inBox(3),
+        box4: inBox(4),
       })
       .from(words)
       .leftJoin(progress, and(eq(progress.wordId, words.id), eq(progress.userId, userId)))
@@ -87,6 +93,8 @@ export const statsRoutes = new Hono<AppEnv>()
         fresh: l.fresh ?? 0,
         learning: l.learning ?? 0,
         mastered: l.mastered ?? 0,
+        // Words in Leitner boxes 1..5, index 0 = box 1.
+        boxes: [l.box1, l.box2, l.box3, l.box4, l.mastered].map((n) => n ?? 0),
       })),
       totals,
       dueNow: due?.n ?? 0,
