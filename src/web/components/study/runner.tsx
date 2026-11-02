@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Check } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ARTICLES, type Article, type Mode } from '@shared/types'
@@ -11,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { api } from '@/lib/api'
 import { percent } from '@/lib/article'
-import type { AnswerBody, AnswerResult, StudyWord } from '@/lib/types'
+import type { AnswerBody, AnswerResult, SameMeaningResult, StudyWord } from '@/lib/types'
 import { Feedback } from './feedback'
 
 interface Entry {
@@ -29,6 +30,8 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
   const [index, setIndex] = useState(0)
   const [entries, setEntries] = useState<Entry[]>([])
   const [current, setCurrent] = useState<Entry | null>(null)
+  // Type it: the last answer was a different word with the same meaning.
+  const [sameMeaning, setSameMeaning] = useState<SameMeaningResult['sameMeaning'] | null>(null)
   const [startedAt] = useState(() => Date.now())
   const [elapsed, setElapsed] = useState(0)
   const finished = index >= items.length
@@ -47,7 +50,7 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
   }, [finished, refresh, startedAt])
 
   const answer = useMutation({
-    mutationFn: (body: AnswerBody) => api.post<AnswerResult>('/study/answer', body),
+    mutationFn: (body: AnswerBody) => api.post<AnswerResult | SameMeaningResult>('/study/answer', body),
     onError: (e) => toast.error(`Could not save answer: ${e.message}`),
   })
 
@@ -59,6 +62,10 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
         : { mode: mode === 'sprint' ? 'sprint' : 'pick', wordId: word.id, chosenArticle: extra.chosen }
       answer.mutate(body, {
         onSuccess: (result) => {
+          if ('sameMeaning' in result) {
+            setSameMeaning(result.sameMeaning)
+            return
+          }
           const entry: Entry = { word, result, ...('typed' in extra ? { typed: extra.typed, peeked: extra.peeked } : { chosen: extra.chosen }) }
           setCurrent(entry)
         },
@@ -70,6 +77,7 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
   const next = useCallback(() => {
     if (current) setEntries((e) => [...e, current])
     setCurrent(null)
+    setSameMeaning(null)
     setIndex((i) => i + 1)
   }, [current])
 
@@ -121,6 +129,11 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
             <>
               <CardDescription className="pt-2">Type the article and the German word</CardDescription>
               <CardTitle className="text-3xl">{word.translation}</CardTitle>
+              {!!word.sameMeaning && (
+                <CardDescription>
+                  {word.sameMeaning === 1 ? '1 other word means this too' : `${word.sameMeaning} other words mean this too`}
+                </CardDescription>
+              )}
             </>
           )}
         </CardHeader>
@@ -130,6 +143,8 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
               key={word.id}
               wordId={word.id}
               entry={current}
+              sameMeaning={sameMeaning}
+              translation={word.translation}
               pending={answer.isPending}
               onSubmit={(typed, peeked) => submit({ typed, peeked })}
               onNext={next}
@@ -148,9 +163,11 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
   )
 }
 
-function TypeInput({ wordId, entry, pending, onSubmit, onNext }: {
+function TypeInput({ wordId, entry, sameMeaning, translation, pending, onSubmit, onNext }: {
   wordId: number
   entry: Entry | null
+  sameMeaning: SameMeaningResult['sameMeaning'] | null
+  translation: string
   pending: boolean
   onSubmit: (typed: string, peeked: boolean) => void
   onNext: () => void
@@ -165,9 +182,26 @@ function TypeInput({ wordId, entry, pending, onSubmit, onNext }: {
     onError: (e) => toast.error(e.message),
   })
   const allShown = peek ? peek.shown >= Array.from(peek.masked).length - 1 : false
+  // A same-meaning answer isn't the one on the card: clear it for another try.
+  const [answeredSameMeaning, setAnsweredSameMeaning] = useState(sameMeaning)
+  if (sameMeaning !== answeredSameMeaning) {
+    setAnsweredSameMeaning(sameMeaning)
+    if (sameMeaning) setValue('')
+  }
+  useEffect(() => {
+    if (sameMeaning) inputRef.current?.focus()
+  }, [sameMeaning])
   if (!entry) {
     return (
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (value.trim()) onSubmit(value, peek !== null) }}>
+        {sameMeaning && (
+          <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-center text-sm dark:border-amber-900 dark:bg-amber-950/40">
+            {sameMeaning.articleOk ? <Check className="mr-1 inline size-4 text-green-600" /> : null}
+            <ArticleBadge article={sameMeaning.article} /> <span className="font-medium">{sameMeaning.lemma}</span> also means
+            "{translation}"{sameMeaning.articleOk ? '' : ` (note the article: ${sameMeaning.article})`}, but this card is for a
+            different word. Try again.
+          </p>
+        )}
         {peek && (
           <p className="text-center font-mono text-xl tracking-[0.3em]" aria-label={`Starts with ${peek.masked.slice(0, peek.shown)}`}>
             {peek.masked}

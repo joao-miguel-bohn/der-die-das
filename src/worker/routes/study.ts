@@ -1,10 +1,11 @@
 import { zValidator } from '@hono/zod-validator'
-import { and, asc, desc, eq, exists, gt, isNull, lte, notInArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, exists, gt, isNull, lte, ne, notInArray, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { checkPick, checkTyped, parseTyped } from '@shared/answer'
+import { checkPick, checkTyped, lemmasMatch, parseTyped } from '@shared/answer'
 import { localDate } from '@shared/dates'
 import { hintFor } from '@shared/hints'
+import { countSameMeaning, sharesMeaning } from '@shared/meanings'
 import { maskLemma } from '@shared/peek'
 import { answerPayloadSchema, peekQuerySchema, sessionQuerySchema } from '@shared/schemas'
 import { nextState } from '@shared/srs'
@@ -23,6 +24,8 @@ export interface StudyWord {
   kind: WordKind
   /** Progress when the session was built, so the card can say why the word came up. */
   history: WordHistory | null
+  /** Type it only: how many other words share a meaning with the prompt, so the card can warn about them. */
+  sameMeaning?: number
 }
 
 export interface LearnWord {
@@ -45,6 +48,12 @@ export const studyRoutes = new Hono<AppEnv>()
     const now = Date.now()
     const levelFilter = level ? eq(words.level, level) : undefined
     const showLemma = mode !== 'type'
+    // Type it asks for the German word from its translation, which other words may share.
+    const withSameMeaning = async (items: StudyWord[]): Promise<StudyWord[]> => {
+      if (!items.length) return items
+      const counts = countSameMeaning(items, await db.select({ id: words.id, translation: words.translation }).from(words))
+      return items.map((w) => ({ ...w, sameMeaning: counts.get(w.id) ?? 0 }))
+    }
     const toItem = (
       r: { id: number; translation: string; level: 'A1' | 'A2' | 'B1'; lemma: string; history: WordHistory | null },
       kind: StudyWord['kind'],
@@ -83,7 +92,7 @@ export const studyRoutes = new Hono<AppEnv>()
         .where(and(eq(progress.userId, userId), gt(progress.box, 0), gt(progress.dueAt, now), levelFilter))
         .orderBy(asc(progress.dueAt))
         .limit(size)
-      return c.json({ items: early.map((r) => toItem(r, 'ahead')) })
+      return c.json({ items: await withSameMeaning(early.map((r) => toItem(r, 'ahead'))) })
     }
 
     if (mode === 'type') {
@@ -107,7 +116,7 @@ export const studyRoutes = new Hono<AppEnv>()
             .limit(newAllowed)
         : []
       return c.json({
-        items: [...due.map((r) => toItem(r, 'due')), ...fresh.map((r) => toItem(r, 'new'))],
+        items: await withSameMeaning([...due.map((r) => toItem(r, 'due')), ...fresh.map((r) => toItem(r, 'new'))]),
       })
     }
 
@@ -242,6 +251,22 @@ export const studyRoutes = new Hono<AppEnv>()
       : payload.chosenArticle
         ? checkPick(payload.chosenArticle, word)
         : { articleOk: false, lemmaOk: true, correct: false, capitalizationOnly: false }
+
+    // Another word with the same meaning isn't wrong, just not the one on the card: say so and record nothing.
+    const parsed = payload.mode === 'type' ? parseTyped(payload.typed) : null
+    if (parsed?.lemma && !check.lemmaOk && !check.capitalizationOnly) {
+      const typedLemma = parsed.lemma.toLowerCase()
+      const others = await db
+        .select({ article: words.article, lemma: words.lemma, translation: words.translation })
+        .from(words)
+        .where(ne(words.id, word.id))
+      const other = others.find((w) => lemmasMatch(typedLemma, w.lemma.toLowerCase()) && sharesMeaning(w.translation, word.translation))
+      if (other) {
+        return c.json({
+          sameMeaning: { article: other.article, lemma: other.lemma, articleOk: parsed.article === other.article },
+        })
+      }
+    }
 
     const [existing] = await db
       .select()
