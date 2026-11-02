@@ -13,26 +13,48 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
 import type { LearnWord, StudyWord } from '@/lib/types'
 
-const MODE_INFO: Record<Mode, { label: string; size: number; description: string }> = {
+// Pick and Sprint drill only the article, with the word on screen, so a right answer doesn't count as recall.
+const ARTICLE_DRILL_EFFECTS = [
+  "A right answer doesn't move the word up a box: only Type it does.",
+  'A wrong answer sends the word back to box 1, due right away in Type it.',
+  "Counts toward your streak, today's answers and article accuracy.",
+]
+
+/** What each mode does to boxes and stats. Keep in step with the answer route in src/worker/routes/study.ts. */
+const MODE_INFO: Record<Mode, { label: string; size: number; description: string; effects: string[] }> = {
   type: {
     label: 'Type it',
     size: 20,
     description: 'Spaced repetition. You see the meaning and type article + word (e.g. "das Haus"). Due words come first, then words you met in Learn.',
+    effects: [
+      'A right answer moves the word up a box, so it comes back less often. Box 5 is mastered.',
+      'A wrong answer sends it back to box 1, due right away.',
+      "A right answer after Show a letter, or while practicing ahead, leaves the word in its box.",
+      "Typing another word with the same meaning doesn't count: you just try again.",
+      "Counts toward your streak, today's answers, article accuracy and spelling.",
+    ],
   },
   pick: {
     label: 'Pick article',
     size: 20,
     description: 'Drill der / die / das on words you met in Learn. Starts with the words you get wrong most often. Keys 1 / 2 / 3.',
+    effects: ARTICLE_DRILL_EFFECTS,
   },
   sprint: {
     label: 'Sprint',
     size: 10,
     description: '10 random words you met in Learn, against the clock. Keys 1 / 2 / 3.',
+    effects: [...ARTICLE_DRILL_EFFECTS, "Your time is shown at the end but isn't saved."],
   },
   learn: {
     label: 'Learn',
     size: 10,
     description: 'Guess the article first (keys 1 / 2 / 3, Space if you don\'t know), then see it with memory aids. Words you miss come back in the same session.',
+    effects: [
+      "Doesn't put words in boxes. Every word you see here is ready for Type it, Pick article and Sprint.",
+      'Words you guess wrong more often than right come back in later Learn sessions.',
+      `Doesn't count toward your streak, today's answers or accuracy, since these are guesses. Misses do show on the dashboard under "Which articles do you mix up?" and "Hardest words".`,
+    ],
   },
 }
 
@@ -112,6 +134,12 @@ export default function Study() {
             </div>
           </TabsList>
         </Tabs>
+        <div className="text-sm">
+          <p className="font-medium">Effect on your progress</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
+            {MODE_INFO[mode].effects.map((e) => <li key={e}>{e}</li>)}
+          </ul>
+        </div>
         <Select value={level} onValueChange={setLevel}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
