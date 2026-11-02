@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { hintFor } from '@shared/hints'
 import { ARTICLES, type Article } from '@shared/types'
+import { whyThisWord } from '@shared/why'
 import { ArticleBadge } from '@/components/article-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -106,6 +107,7 @@ export function LearnRunner({ items, onExit }: { items: LearnWord[]; onExit: () 
             <Badge variant="outline">{word.level}</Badge>
             <Badge variant="secondary">{word.kind === 'new' ? 'new' : 'review'}</Badge>
           </div>
+          <p className="text-xs text-muted-foreground">{whyThisWord('learn', word.kind, word.history)}</p>
           {answered ? (
             <div className="flex items-center justify-center gap-3 pt-2">
               <ArticleBadge article={word.article} className="px-3 py-1 text-2xl" />

@@ -8,6 +8,7 @@ import { hintFor } from '@shared/hints'
 import { maskLemma } from '@shared/peek'
 import { answerPayloadSchema, peekQuerySchema, sessionQuerySchema } from '@shared/schemas'
 import { nextState } from '@shared/srs'
+import type { WordHistory, WordKind } from '@shared/why'
 import type { AppEnv } from '../middleware'
 import { schema } from '../db'
 
@@ -19,7 +20,9 @@ export interface StudyWord {
   level: 'A1' | 'A2' | 'B1'
   /** Only sent for article-only modes, where the lemma is part of the question. */
   lemma?: string
-  kind: 'due' | 'new' | 'ahead' | 'practice'
+  kind: WordKind
+  /** Progress when the session was built, so the card can say why the word came up. */
+  history: WordHistory | null
 }
 
 export interface LearnWord {
@@ -31,6 +34,7 @@ export interface LearnWord {
   plural: string | null
   example: string | null
   kind: 'new' | 'practice'
+  history: WordHistory | null
 }
 
 export const studyRoutes = new Hono<AppEnv>()
@@ -41,14 +45,27 @@ export const studyRoutes = new Hono<AppEnv>()
     const now = Date.now()
     const levelFilter = level ? eq(words.level, level) : undefined
     const showLemma = mode !== 'type'
-    const toItem = (r: { id: number; translation: string; level: 'A1' | 'A2' | 'B1'; lemma: string }, kind: StudyWord['kind']): StudyWord => ({
+    const toItem = (
+      r: { id: number; translation: string; level: 'A1' | 'A2' | 'B1'; lemma: string; history: WordHistory | null },
+      kind: StudyWord['kind'],
+    ): StudyWord => ({
       id: r.id,
       translation: r.translation,
       level: r.level,
       kind,
+      history: r.history,
       ...(showLemma ? { lemma: r.lemma } : {}),
     })
-    const cols = { id: words.id, translation: words.translation, level: words.level, lemma: words.lemma }
+    const history = {
+      box: progress.box,
+      dueAt: progress.dueAt,
+      lastSeenAt: progress.lastSeenAt,
+      seen: progress.seen,
+      correct: progress.correct,
+      wrong: progress.wrong,
+    }
+    const cols = { id: words.id, translation: words.translation, level: words.level, lemma: words.lemma, history }
+    const userProgress = and(eq(progress.wordId, words.id), eq(progress.userId, userId))
     // Quiz modes only use words you have already been shown in Learn.
     const metInLearn = exists(
       db
@@ -103,6 +120,7 @@ export const studyRoutes = new Hono<AppEnv>()
         article: words.article,
         plural: words.plural,
         example: words.example,
+        history,
       }
       // Up to half the session: words not yet in the quiz boxes that were missed more often than known.
       const struggling = await db
@@ -115,7 +133,7 @@ export const studyRoutes = new Hono<AppEnv>()
       const unseen = await db
         .select(learnCols)
         .from(words)
-        .leftJoin(progress, and(eq(progress.wordId, words.id), eq(progress.userId, userId)))
+        .leftJoin(progress, userProgress)
         .where(and(isNull(progress.wordId), levelFilter))
         .orderBy(sql`random()`)
         .limit(size - struggling.length)
@@ -144,6 +162,7 @@ export const studyRoutes = new Hono<AppEnv>()
         ? await db
             .select(cols)
             .from(words)
+            .leftJoin(progress, userProgress)
             .where(and(weak.length ? notInArray(words.id, weak.map((w) => w.id)) : undefined, metInLearn, levelFilter))
             .orderBy(sql`random()`)
             .limit(fill)
@@ -153,7 +172,7 @@ export const studyRoutes = new Hono<AppEnv>()
     }
 
     // sprint: random words
-    const rows = await db.select(cols).from(words).where(and(metInLearn, levelFilter)).orderBy(sql`random()`).limit(size)
+    const rows = await db.select(cols).from(words).leftJoin(progress, userProgress).where(and(metInLearn, levelFilter)).orderBy(sql`random()`).limit(size)
     return c.json({ items: rows.map((r) => toItem(r, 'practice')) })
   })
 

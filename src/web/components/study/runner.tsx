@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ARTICLES, type Article, type Mode } from '@shared/types'
+import { whyThisWord } from '@shared/why'
 import { ArticleBadge } from '@/components/article-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -110,6 +111,7 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
             <Badge variant="outline">{word.level}</Badge>
             {word.kind !== 'practice' && <Badge variant="secondary">{word.kind === 'new' ? 'new' : word.kind === 'ahead' ? 'early' : 'review'}</Badge>}
           </div>
+          <p className="text-xs text-muted-foreground">{whyThisWord(mode, word.kind, word.history)}</p>
           {word.lemma ? (
             <>
               <CardTitle className="pt-2 text-3xl">{word.lemma}</CardTitle>
