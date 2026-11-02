@@ -1,5 +1,6 @@
 import type { Article, Level, WordStatus } from '@shared/types'
 import type { Hint } from '@shared/hints'
+import type { WordHistory, WordKind } from '@shared/why'
 
 export interface Me { userId: string; email: string; isAdmin: boolean }
 
@@ -8,7 +9,8 @@ export interface StudyWord {
   translation: string
   level: Level
   lemma?: string
-  kind: 'due' | 'new' | 'ahead' | 'practice'
+  kind: WordKind
+  history: WordHistory | null
 }
 
 export interface LearnWord {
@@ -20,6 +22,7 @@ export interface LearnWord {
   plural: string | null
   example: string | null
   kind: 'new' | 'practice'
+  history: WordHistory | null
 }
 
 export interface AnswerResult {

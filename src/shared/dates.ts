@@ -25,3 +25,22 @@ export function computeStreak(activeDates: Iterable<string>, now: number): numbe
   }
   return streak
 }
+
+const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['year', 365 * 86_400],
+  ['month', 30 * 86_400],
+  ['week', 7 * 86_400],
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', 60],
+]
+
+/** "3 hours ago", "yesterday", "in 2 days", "just now". */
+export function timeAgo(ms: number, now = Date.now()): string {
+  const seconds = (ms - now) / 1000
+  for (const [unit, size] of UNITS) {
+    if (Math.abs(seconds) >= size) return relative.format(Math.round(seconds / size), unit)
+  }
+  return 'just now'
+}
