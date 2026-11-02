@@ -41,7 +41,7 @@ export type AnswerBody =
   | { mode: 'pick' | 'sprint' | 'learn'; wordId: number; chosenArticle: Article | null }
 
 export interface Overview {
-  levels: { level: Level; total: number; fresh: number; learning: number; mastered: number }[]
+  levels: { level: Level; total: number; fresh: number; learning: number; mastered: number; boxes: number[] }[]
   totals: { total: number; fresh: number; learning: number; mastered: number }
   dueNow: number
   readyToType: number
