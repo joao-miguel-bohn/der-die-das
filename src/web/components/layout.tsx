@@ -70,11 +70,12 @@ export function Layout() {
           </Button>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 pt-6 pb-24 lg:pb-6">
+      <main className="mx-auto max-w-5xl px-4 pt-3 pb-24 sm:pt-6 lg:pb-6 has-data-study-session:pb-6">
         <Outlet />
       </main>
-      {/* Phones and tablets get a bottom tab bar: the header has no room for every link. */}
-      <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t bg-background/90 backdrop-blur lg:hidden">
+      {/* Phones and tablets get a bottom tab bar: the header has no room for every link.
+          Hidden during a study session, which has its own End button and needs the room above the keyboard. */}
+      <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t bg-background/90 backdrop-blur lg:hidden in-[body:has([data-study-session])]:hidden">
         {links.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}

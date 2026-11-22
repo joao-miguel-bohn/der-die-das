@@ -6,12 +6,12 @@ import { hintFor } from '@shared/hints'
 import { ARTICLES, type Article } from '@shared/types'
 import { whyThisWord } from '@shared/why'
 import { ArticleBadge } from '@/components/article-badge'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { api } from '@/lib/api'
 import type { AnswerBody, LearnWord } from '@/lib/types'
+import { CardMeta } from './card-meta'
 
 const MAX_ROUNDS = 3
 
@@ -90,7 +90,7 @@ export function LearnRunner({ items, onExit }: { items: LearnWord[]; onExit: () 
   const hint = hintFor(word.lemma, word.article)
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div data-study-session className="mx-auto max-w-lg space-y-2 sm:space-y-3">
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Progress value={(known / items.length) * 100} className="flex-1" />
         <span>
@@ -101,24 +101,22 @@ export function LearnRunner({ items, onExit }: { items: LearnWord[]; onExit: () 
         </Button>
       </div>
 
-      <Card>
+      <Card className="[--card-spacing:--spacing(3)] sm:[--card-spacing:--spacing(4)]">
         <CardHeader className="text-center">
-          <div className="flex justify-center gap-2">
-            <Badge variant="outline">{word.level}</Badge>
-            <Badge variant="secondary">{word.kind === 'new' ? 'new' : 'review'}</Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">{whyThisWord('learn', word.kind, word.history)}</p>
+          <CardMeta level={word.level} kind={word.kind === 'new' ? 'new' : 'review'}>
+            {whyThisWord('learn', word.kind, word.history)}
+          </CardMeta>
           {answered ? (
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex items-center justify-center gap-3 pt-1">
               <ArticleBadge article={word.article} className="px-3 py-1 text-2xl" />
               <span className="text-3xl font-bold">{word.lemma}</span>
             </div>
           ) : (
-            <CardTitle className="pt-2 text-3xl">{word.lemma}</CardTitle>
+            <CardTitle className="pt-1 text-3xl">{word.lemma}</CardTitle>
           )}
           <CardDescription className="text-base">{word.translation}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {answered ? (
             <>
               <GuessResult guess={guess} article={word.article} />

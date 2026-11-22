@@ -1,11 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type ComponentProps, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ARTICLES, type Article, type Mode } from '@shared/types'
 import { whyThisWord } from '@shared/why'
 import { ArticleBadge } from '@/components/article-badge'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -13,6 +12,7 @@ import { Progress } from '@/components/ui/progress'
 import { api } from '@/lib/api'
 import { percent } from '@/lib/article'
 import type { AnswerBody, AnswerResult, SameMeaningResult, StudyWord } from '@/lib/types'
+import { CardMeta } from './card-meta'
 import { Feedback } from './feedback'
 
 interface Entry {
@@ -105,29 +105,27 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
   if (!word) return null
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div data-study-session className="mx-auto max-w-lg space-y-2 sm:space-y-3">
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Progress value={(index / items.length) * 100} className="flex-1" />
-        <span>{index + 1} / {items.length}</span>
+        <span className="tabular-nums">{index + 1} / {items.length}</span>
         {mode === 'sprint' && <span className="tabular-nums">{elapsed}s</span>}
         <Button variant="ghost" size="sm" onClick={onExit}>End</Button>
       </div>
 
-      <Card>
+      <Card className="[--card-spacing:--spacing(3)] sm:[--card-spacing:--spacing(4)]">
         <CardHeader className="text-center">
-          <div className="flex justify-center gap-2">
-            <Badge variant="outline">{word.level}</Badge>
-            {word.kind !== 'practice' && <Badge variant="secondary">{word.kind === 'new' ? 'new' : word.kind === 'ahead' ? 'early' : 'review'}</Badge>}
-          </div>
-          <p className="text-xs text-muted-foreground">{whyThisWord(mode, word.kind, word.history)}</p>
+          <CardMeta level={word.level} kind={word.kind === 'practice' ? null : word.kind === 'new' ? 'new' : word.kind === 'ahead' ? 'early' : 'review'}>
+            {whyThisWord(mode, word.kind, word.history)}
+          </CardMeta>
           {word.lemma ? (
             <>
-              <CardTitle className="pt-2 text-3xl">{word.lemma}</CardTitle>
+              <CardTitle className="pt-1 text-3xl">{word.lemma}</CardTitle>
               <CardDescription className="text-base">{word.translation}</CardDescription>
             </>
           ) : (
             <>
-              <CardDescription className="pt-2">Type the article and the German word</CardDescription>
+              <CardDescription className="pt-1">Type the article and the German word</CardDescription>
               <CardTitle className="text-3xl">{word.translation}</CardTitle>
               {!!word.sameMeaning && (
                 <CardDescription>
@@ -137,7 +135,7 @@ export function Runner({ mode, items, onExit }: { mode: Mode; items: StudyWord[]
             </>
           )}
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {mode === 'type' ? (
             <TypeInput
               key={word.id}
@@ -191,9 +189,30 @@ function TypeInput({ wordId, entry, sameMeaning, translation, pending, onSubmit,
   useEffect(() => {
     if (sameMeaning) inputRef.current?.focus()
   }, [sameMeaning])
+
+  const canCheck = !pending && !!value.trim()
+  const canPeek = !pending && !peekMore.isPending && !allShown
+  const check = () => { if (canCheck) onSubmit(value, peek !== null) }
+  const giveUp = () => { if (!pending) onSubmit('', peek !== null) }
+  const showLetter = () => { if (canPeek) peekMore.mutate() }
+
+  // Keys 1 / 2 / 3, even while typing: answers never contain digits. Re-bound each render to see the latest value.
+  useEffect(() => {
+    if (entry) return
+    const actions: Record<string, () => void> = { 1: check, 2: giveUp, 3: showLetter }
+    const onKey = (e: KeyboardEvent) => {
+      const action = actions[e.key]
+      if (!action || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
+      e.preventDefault()
+      action()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   if (!entry) {
     return (
-      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (value.trim()) onSubmit(value, peek !== null) }}>
+      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); check() }}>
         {sameMeaning && (
           <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-center text-sm dark:border-amber-900 dark:bg-amber-950/40">
             {sameMeaning.articleOk ? <Check className="mr-1 inline size-4 text-green-600" /> : null}
@@ -212,20 +231,28 @@ function TypeInput({ wordId, entry, sameMeaning, translation, pending, onSubmit,
           autoFocus
           autoComplete="off"
           autoCapitalize="off"
+          autoCorrect="off"
           spellCheck={false}
+          enterKeyHint="go"
+          lang="de"
           placeholder="e.g. das Haus"
           className="h-12 text-center text-lg"
           value={value}
           disabled={pending}
           onChange={(e) => setValue(e.target.value)}
         />
-        <div className="flex gap-2">
-          <Button type="submit" className="flex-1" disabled={pending || !value.trim()}>Check</Button>
-          <Button type="button" variant="outline" disabled={pending} onClick={() => onSubmit('', peek !== null)}>I don't know</Button>
+        {/* Buttons keep focus in the field, so the phone keyboard stays open and the card doesn't jump. */}
+        <div className="grid grid-cols-3 gap-2" onMouseDown={(e) => e.preventDefault()}>
+          <ActionButton type="submit" shortcut={1} disabled={!canCheck}>Check</ActionButton>
+          <ActionButton variant="outline" shortcut={2} disabled={pending} onClick={giveUp}>
+            <span className="sm:hidden">Don't know</span>
+            <span className="hidden sm:inline">I don't know</span>
+          </ActionButton>
+          <ActionButton variant="outline" shortcut={3} disabled={!canPeek} onClick={showLetter}>
+            <span className="sm:hidden">{peek ? '+1 letter' : 'A letter'}</span>
+            <span className="hidden sm:inline">{peek ? 'Another letter' : 'Show a letter'}</span>
+          </ActionButton>
         </div>
-        <Button type="button" variant="ghost" className="w-full" disabled={pending || peekMore.isPending || allShown} onClick={() => peekMore.mutate()}>
-          {peek ? 'Show another letter' : 'Show a letter'}
-        </Button>
       </form>
     )
   }
@@ -245,6 +272,16 @@ function TypeInput({ wordId, entry, sameMeaning, translation, pending, onSubmit,
         <RetypeField expected={`${entry.result.answer.article} ${entry.result.answer.lemma}`} onNext={onNext} />
       )}
     </div>
+  )
+}
+
+/** A Type it action: tall enough to tap, with its key shown where there's a keyboard. */
+function ActionButton({ shortcut, children, ...props }: ComponentProps<typeof Button> & { shortcut: number }) {
+  return (
+    <Button type="button" size="lg" className="h-11 min-w-0 px-2 sm:h-9" {...props}>
+      <span className="truncate">{children}</span>
+      <kbd className="hidden font-sans text-xs font-normal opacity-60 pointer-fine:inline">{shortcut}</kbd>
+    </Button>
   )
 }
 
